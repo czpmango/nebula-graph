@@ -62,7 +62,6 @@ static constexpr size_t MAX_ABS_INTEGER = 9223372036854775808ULL;
     nebula::FromClause                     *from_clause;
     nebula::ToClause                       *to_clause;
     nebula::VertexIDList                   *vid_list;
-    nebula::NameLabelList                  *name_label_list;
     nebula::OverEdge                       *over_edge;
     nebula::OverEdges                      *over_edges;
     nebula::OverClause                     *over_clause;
@@ -130,7 +129,7 @@ static constexpr size_t MAX_ABS_INTEGER = 9223372036854775808ULL;
 
 /* keywords */
 %token KW_BOOL KW_INT8 KW_INT16 KW_INT32 KW_INT64 KW_INT KW_FLOAT KW_DOUBLE
-%token KW_STRING KW_FIXED_STRING KW_TIMESTAMP KW_DATE KW_TIME KW_DATETIME
+%token KW_STRING KW_FIXED_STRING KW_TIMESTAMP KW_DATE KW_TIME KW_DATETIME KW_RANGE
 %token KW_GO KW_AS KW_TO KW_USE KW_SET KW_FROM KW_WHERE KW_ALTER
 %token KW_MATCH KW_INSERT KW_VALUES KW_YIELD KW_RETURN KW_CREATE KW_VERTEX
 %token KW_EDGE KW_EDGES KW_STEPS KW_OVER KW_UPTO KW_REVERSELY KW_SPACE KW_DELETE KW_FIND
@@ -276,9 +275,8 @@ static constexpr size_t MAX_ABS_INTEGER = 9223372036854775808ULL;
 %type <role_type_clause> role_type_clause
 %type <acl_item_clause> acl_item_clause
 
-%type <name_label_list> name_label_list
 %type <index_field> index_field
-%type <index_field_list> index_field_list opt_index_field_list
+%type <index_field_list> index_field_list
 
 %type <sentence> maintain_sentence
 %type <sentence> create_space_sentence describe_space_sentence drop_space_sentence
@@ -343,17 +341,6 @@ static constexpr size_t MAX_ABS_INTEGER = 9223372036854775808ULL;
 name_label
     : LABEL { $$ = $1; }
     | unreserved_keyword { $$ = $1; }
-    ;
-
-name_label_list
-    : name_label {
-        $$ = new NameLabelList();
-        $$->add($1);
-    }
-    | name_label_list COMMA name_label {
-        $1->add($3);
-        $$ = $1;
-    }
     ;
 
 legal_integer
@@ -746,6 +733,9 @@ function_call_expression
     }
     | KW_DATETIME L_PAREN opt_argument_list R_PAREN {
         $$ = new FunctionCallExpression(new std::string("datetime"), $3);
+    }
+    | KW_RANGE L_PAREN opt_argument_list R_PAREN {
+        $$ = new FunctionCallExpression(new std::string("RANGE"), $3);
     }
     ;
 
@@ -1380,10 +1370,10 @@ order_by_sentence
     ;
 
 fetch_vertices_sentence
-    : KW_FETCH KW_PROP KW_ON name_label_list vid_list yield_clause {
+    : KW_FETCH KW_PROP KW_ON name_label vid_list yield_clause {
         $$ = new FetchVerticesSentence($4, $5, $6);
     }
-    | KW_FETCH KW_PROP KW_ON name_label_list vid_ref_expression yield_clause {
+    | KW_FETCH KW_PROP KW_ON name_label vid_ref_expression yield_clause {
         $$ = new FetchVerticesSentence($4, $5, $6);
     }
     | KW_FETCH KW_PROP KW_ON STAR vid_list yield_clause {
@@ -1434,11 +1424,11 @@ edge_key_ref:
     ;
 
 fetch_edges_sentence
-    : KW_FETCH KW_PROP KW_ON name_label_list edge_keys yield_clause {
+    : KW_FETCH KW_PROP KW_ON name_label edge_keys yield_clause {
         auto fetch = new FetchEdgesSentence($4, $5, $6);
         $$ = fetch;
     }
-    | KW_FETCH KW_PROP KW_ON name_label_list edge_key_ref yield_clause {
+    | KW_FETCH KW_PROP KW_ON name_label edge_key_ref yield_clause {
         auto fetch = new FetchEdgesSentence($4, $5, $6);
         $$ = fetch;
     }
@@ -1791,23 +1781,14 @@ index_field_list
     }
     ;
 
-opt_index_field_list
-    : %empty {
-        $$ = nullptr;
-    }
-    | index_field_list {
-        $$ = $1;
-    }
-    ;
-
 create_tag_index_sentence
-    : KW_CREATE KW_TAG KW_INDEX opt_if_not_exists name_label KW_ON name_label L_PAREN opt_index_field_list R_PAREN {
+    : KW_CREATE KW_TAG KW_INDEX opt_if_not_exists name_label KW_ON name_label L_PAREN index_field_list R_PAREN {
         $$ = new CreateTagIndexSentence($5, $7, $9, $4);
     }
     ;
 
 create_edge_index_sentence
-    : KW_CREATE KW_EDGE KW_INDEX opt_if_not_exists name_label KW_ON name_label L_PAREN opt_index_field_list R_PAREN {
+    : KW_CREATE KW_EDGE KW_INDEX opt_if_not_exists name_label KW_ON name_label L_PAREN index_field_list R_PAREN {
         $$ = new CreateEdgeIndexSentence($5, $7, $9, $4);
     }
     ;
