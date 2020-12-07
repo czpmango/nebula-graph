@@ -41,6 +41,7 @@ nebula-python/
 .settings/
 .classpath
 cmake-build-debug/
+cmake-build-*/
 cmake-build-release/
 .vscode/
 
