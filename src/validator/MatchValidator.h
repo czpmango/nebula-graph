@@ -52,6 +52,9 @@ private:
                            const YieldColumns *yieldColumns,
                            OrderByClauseContext &orderByCtx) const;
 
+    Status validateGroup(const YieldColumns *yieldColumns,
+                         GroupClauseContext &groupCtx) const;
+
     StatusOr<Expression*> makeSubFilter(const std::string &alias,
                                         const MapExpression *map,
                                         const std::string &label = "") const;

@@ -10,6 +10,8 @@
 
 #include "common/expression/PropertyExpression.h"
 #include "visitor/FoldConstantExprVisitor.h"
+#include "visitor/EvaluableExprVisitor.h"
+#include "visitor/RewriteAggExprVisitor.h"
 
 namespace nebula {
 namespace graph {
@@ -199,6 +201,76 @@ std::vector<std::unique_ptr<Expression>> ExpressionUtils::expandImplOr(const Exp
         }
     }
     return exprs;
+}
+
+
+Status ExpressionUtils::checkAggExpr(const AggregateExpression* aggExpr) {
+    auto func = aggExpr->name();
+    if (!func) {
+        return Status::SemanticError("`%s' aggregate function not set.",
+                                     aggExpr->toString().c_str());
+    }
+
+    auto iter = AggregateExpression::NAME_ID_MAP.find(func->c_str());
+    if (iter == AggregateExpression::NAME_ID_MAP.end()) {
+        return Status::SemanticError("Unknown aggregate function `%s'", func->c_str());
+    }
+
+    auto* aggArg = aggExpr->arg();
+    if (graph::ExpressionUtils::findAny(aggArg,
+                                        {Expression::Kind::kAggregate})) {
+        return Status::SemanticError("Aggregate function nesting is not allowed: `%s'",
+                                     aggExpr->toString().c_str());
+    }
+
+    if (iter->second != AggregateExpression::Function::kCount) {
+        if (aggArg->toString() == "*") {
+            return Status::SemanticError("Could not apply aggregation function `%s' on `*`",
+                                         aggExpr->toString().c_str());
+        }
+        if (aggArg->kind() == Expression::Kind::kInputProperty
+            || aggArg->kind() == Expression::Kind::kVarProperty) {
+            auto propExpr = static_cast<const PropertyExpression*>(aggArg);
+            if (*propExpr->prop() == "*") {
+                return Status::SemanticError(
+                    "Could not apply aggregation function `%s' on `%s'",
+                    aggExpr->toString().c_str(), propExpr->toString().c_str());
+            }
+        }
+    }
+
+    return Status::OK();
+}
+
+// Rewrite AggExpr inside NonAggExpr as VarPropExpr
+Status ExpressionUtils::rewriteInnerAggExpr(Expression* rewritedExpr,
+                                            AggregateExpression* innerAggExpr) {
+    // agg col need not rewrite
+    DCHECK(rewritedExpr->kind() != Expression::Kind::kAggregate);
+    auto collectAggCol = rewritedExpr->clone();
+    auto aggs = ExpressionUtils::collectAll(collectAggCol.get(),
+                                            {Expression::Kind::kAggregate});
+    if (aggs.size() > 1) {
+        return Status::SemanticError("Aggregate function nesting is not allowed: `%s'",
+                                     collectAggCol->toString().c_str());
+    }
+    if (aggs.size() == 1) {
+        auto* aggExpr = aggs[0]->clone().release();
+        DCHECK(aggExpr->kind() == Expression::Kind::kAggregate);
+        innerAggExpr = static_cast<AggregateExpression*>(aggExpr);
+        auto aggColName = innerAggExpr->toString();
+        RewriteAggExprVisitor rewriteAggVisitor(new std::string(),
+                                                new std::string(aggColName));
+        rewritedExpr->accept(&rewriteAggVisitor);
+    }
+
+    return Status::OK();
+}
+
+bool ExpressionUtils::isEvaluableExpr(const Expression* expr) {
+    EvaluableExprVisitor visitor;
+    const_cast<Expression*>(expr)->accept(&visitor);
+    return visitor.ok();
 }
 }   // namespace graph
 }   // namespace nebula

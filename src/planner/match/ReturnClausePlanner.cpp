@@ -10,6 +10,7 @@
 #include "planner/match/MatchSolver.h"
 #include "planner/match/OrderByClausePlanner.h"
 #include "planner/match/PaginationPlanner.h"
+#include "planner/match/GroupClausePlanner.h"
 #include "planner/match/SegmentsConnector.h"
 #include "visitor/RewriteMatchLabelVisitor.h"
 
@@ -53,6 +54,17 @@ Status ReturnClausePlanner::buildReturn(ReturnClauseContext* rctx, SubPlan& subP
         } else {
             colNames.emplace_back(col->expr()->toString());
         }
+    }
+
+    auto* groupCtx = rctx->group.get();
+    if (groupCtx) {
+        // TODO: toPlan (czp)
+        auto groupPlan = std::make_unique<GroupClausePlanner>()->transform(groupCtx);
+        NG_RETURN_IF_ERROR(groupPlan);
+        // auto plan = std::move(groupPlan).value();
+        // UNUSED(plan);
+        // SegmentsConnector::addInput(plan.tail, subPlan.root, true);
+        // subPlan.root = plan.root;
     }
 
     auto* project = Project::make(rctx->qctx, nullptr, yields);

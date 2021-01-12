@@ -354,13 +354,24 @@ Status MatchValidator::validateReturn(MatchReturn *ret,
     } else {
         retClauseCtx.yieldColumns = columns;
     }
+
+    bool hasAgg = false;
     // Check all referencing expressions are valid
     std::vector<const Expression*> exprs;
     exprs.reserve(retClauseCtx.yieldColumns->size());
     for (auto *col : retClauseCtx.yieldColumns->columns()) {
+        if (col->expr()->kind() == Expression::Kind::kAggregate) {
+            hasAgg = true;
+        }
         exprs.push_back(col->expr());
     }
     NG_RETURN_IF_ERROR(validateAliases(exprs, retClauseCtx.aliasesUsed));
+
+    if (hasAgg) {
+        auto groupCtx = getContext<GroupClauseContext>();
+        NG_RETURN_IF_ERROR(validateGroup(ret->columns(), *groupCtx));
+        retClauseCtx.group = std::move(groupCtx);
+    }
 
     retClauseCtx.distinct = ret->isDistinct();
 
@@ -626,6 +637,70 @@ Status MatchValidator::validateOrderBy(const OrderFactors *factors,
         }
     }
 
+    return Status::OK();
+}
+
+Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
+                                       GroupClauseContext &groupCtx) const {
+    auto cols = yieldColumns->columns();
+    if (cols.empty()) {
+        return Status::SemanticError("Return cols is Empty");
+    }
+
+    groupCtx.projCols_ = groupCtx.qctx->objPool()->add(new YieldColumns);
+    for (auto* col : cols) {
+        auto rewrited = false;
+        auto colOldName = deduceColName(col);
+        if (col->expr()->kind() != Expression::Kind::kAggregate) {
+            // rewritedExpr will dive into Proj PlanNode  (MLC?)
+            auto* rewritedExpr = col->expr()->clone().release();
+            AggregateExpression* innerAggExpr = nullptr;
+            NG_RETURN_IF_ERROR(ExpressionUtils::rewriteInnerAggExpr(rewritedExpr, innerAggExpr));
+            if (innerAggExpr) {
+                rewrited = true;
+                groupCtx.needGenProject_ = true;
+                groupCtx.projCols_->addColumn(new YieldColumn(rewritedExpr,
+                                              new std::string(colOldName)));
+                col->setExpr(innerAggExpr);
+            }
+        }
+
+        auto colExpr = col->expr();
+        // collect exprs for check later
+        if (colExpr->kind() == Expression::Kind::kAggregate) {
+            auto* aggExpr = static_cast<AggregateExpression*>(colExpr);
+            NG_RETURN_IF_ERROR(ExpressionUtils::checkAggExpr(aggExpr));
+        } else if (!ExpressionUtils::isEvaluableExpr(colExpr)) {
+            groupCtx.groupKeys_.emplace_back(colExpr);
+        }
+
+        groupCtx.groupItems_.emplace_back(colExpr);
+        auto status = deduceExprType(colExpr);
+        NG_RETURN_IF_ERROR(status);
+        // auto type = std::move(status).value();
+        std::string name;
+        if (!rewrited) {
+            name = deduceColName(col);
+            groupCtx.projCols_->addColumn(new YieldColumn(
+                new VariablePropertyExpression(new std::string(),
+                                           new std::string(name)),
+                new std::string(colOldName)));
+        } else {
+            name = colExpr->toString();
+        }
+        groupCtx.projOutputColumnNames_.emplace_back(colOldName);
+        // outputs_.emplace_back(name, type);
+        groupCtx.outputColumnNames_.emplace_back(name);
+
+        // if (col->alias() != nullptr && !rewrited) {
+        //     aliases_.emplace(*col->alias(), col);
+        // }
+        // ExpressionProps yieldProps;
+        // NG_RETURN_IF_ERROR(deduceProps(colExpr, yieldProps));
+        // exprProps_.unionProps(std::move(yieldProps));
+    }
+
+    // groupCtx.needGenProject_ = needGenProject;
     return Status::OK();
 }
 
