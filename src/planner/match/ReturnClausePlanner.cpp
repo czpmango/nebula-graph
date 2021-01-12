@@ -28,27 +28,10 @@ StatusOr<SubPlan> ReturnClausePlanner::transform(CypherClauseContextBase* clause
 }
 
 Status ReturnClausePlanner::buildReturn(ReturnClauseContext* rctx, SubPlan& subPlan) {
-    auto* yields = new YieldColumns();
-    rctx->qctx->objPool()->add(yields);
     std::vector<std::string> colNames;
     PlanNode* current = nullptr;
 
-    auto rewriter = [rctx](const Expression* expr) {
-        return MatchSolver::doRewrite(*rctx->aliasesUsed, expr);
-    };
-
     for (auto* col : rctx->yieldColumns->columns()) {
-        auto kind = col->expr()->kind();
-        YieldColumn* newColumn = nullptr;
-        if (kind == Expression::Kind::kLabel || kind == Expression::Kind::kLabelAttribute) {
-            newColumn = new YieldColumn(rewriter(col->expr()));
-        } else {
-            auto newExpr = col->expr()->clone();
-            RewriteMatchLabelVisitor visitor(rewriter);
-            newExpr->accept(&visitor);
-            newColumn = new YieldColumn(newExpr.release());
-        }
-        yields->addColumn(newColumn);
         if (col->alias() != nullptr) {
             colNames.emplace_back(*col->alias());
         } else {
@@ -58,19 +41,19 @@ Status ReturnClausePlanner::buildReturn(ReturnClauseContext* rctx, SubPlan& subP
 
     auto* groupCtx = rctx->group.get();
     if (groupCtx) {
-        // TODO: toPlan (czp)
         auto groupPlan = std::make_unique<GroupClausePlanner>()->transform(groupCtx);
         NG_RETURN_IF_ERROR(groupPlan);
-        // auto plan = std::move(groupPlan).value();
-        // UNUSED(plan);
-        // SegmentsConnector::addInput(plan.tail, subPlan.root, true);
-        // subPlan.root = plan.root;
+        auto plan = std::move(groupPlan).value();
+        subPlan.tail = plan.tail;
+        current = plan.root;
+    } else {
+        auto* project = Project::make(rctx->qctx,
+                                      nullptr,
+                                      const_cast<YieldColumns*>(rctx->yieldColumns));
+        project->setColNames(std::move(colNames));
+        subPlan.tail = project;
+        current = project;
     }
-
-    auto* project = Project::make(rctx->qctx, nullptr, yields);
-    project->setColNames(std::move(colNames));
-    subPlan.tail = project;
-    current = project;
 
     if (rctx->distinct) {
         auto* dedup = Dedup::make(rctx->qctx, current);
@@ -102,7 +85,6 @@ Status ReturnClausePlanner::buildReturn(ReturnClauseContext* rctx, SubPlan& subP
 
     VLOG(1) << "return root: " << subPlan.root->outputVar()
             << " colNames: " << folly::join(",", subPlan.root->colNames());
-    // TODO: Handle grouping
 
     return Status::OK();
 }

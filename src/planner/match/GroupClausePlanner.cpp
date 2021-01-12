@@ -22,12 +22,23 @@ StatusOr<SubPlan> GroupClausePlanner::transform(CypherClauseContextBase* clauseC
 }
 
 Status GroupClausePlanner::buildGroup(GroupClauseContext* gctx, SubPlan& subplan) {
-    UNUSED(gctx);
-    UNUSED(subplan);
-    // auto* currentRoot = subplan.root;
-    // auto* group = Sort::make(octx->qctx, currentRoot, octx->indexedOrderFactors);
-    // subplan.root = group;
-    // subplan.tail = group;
+    auto* currentRoot = subplan.root;
+    auto* agg = Aggregate::make(gctx->qctx,
+                                currentRoot,
+                                std::move(gctx->groupKeys_),
+                                std::move(gctx->groupItems_));
+    agg->setColNames(std::vector<std::string>(gctx->outputColumnNames_));
+    if (gctx->needGenProject_) {
+        // rewrite Expr which has inner aggExpr and push it up to Project.
+        auto *project = Project::make(gctx->qctx, agg, gctx->projCols_);
+        project->setInputVar(agg->outputVar());
+        project->setColNames(gctx->projOutputColumnNames_);
+        subplan.root = project;
+    } else {
+        subplan.root = agg;
+    }
+    subplan.tail = agg;
+
     return Status::OK();
 }
 }  // namespace graph

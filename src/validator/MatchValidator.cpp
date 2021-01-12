@@ -8,6 +8,7 @@
 
 #include "util/ExpressionUtils.h"
 #include "visitor/RewriteMatchLabelVisitor.h"
+#include "planner/match/MatchSolver.h"
 
 namespace nebula {
 namespace graph {
@@ -355,6 +356,26 @@ Status MatchValidator::validateReturn(MatchReturn *ret,
         retClauseCtx.yieldColumns = columns;
     }
 
+    // wrap the rewrite code block
+    auto* yields = retClauseCtx.qctx->objPool()->add(new YieldColumns());
+    auto rewriter = [&retClauseCtx](const Expression* expr) {
+        return MatchSolver::doRewrite(*retClauseCtx.aliasesUsed, expr);
+    };
+    for (auto* col : retClauseCtx.yieldColumns->columns()) {
+        auto exprKind = col->expr()->kind();
+        YieldColumn* newColumn = nullptr;
+        if (exprKind == Expression::Kind::kLabel || exprKind == Expression::Kind::kLabelAttribute) {
+            newColumn = new YieldColumn(rewriter(col->expr()));
+        } else {
+            auto newExpr = col->expr()->clone();
+            RewriteMatchLabelVisitor visitor(rewriter);
+            newExpr->accept(&visitor);
+            newColumn = new YieldColumn(newExpr.release());
+        }
+        yields->addColumn(newColumn);
+    }
+    retClauseCtx.yieldColumns = yields;
+
     bool hasAgg = false;
     // Check all referencing expressions are valid
     std::vector<const Expression*> exprs;
@@ -369,7 +390,7 @@ Status MatchValidator::validateReturn(MatchReturn *ret,
 
     if (hasAgg) {
         auto groupCtx = getContext<GroupClauseContext>();
-        NG_RETURN_IF_ERROR(validateGroup(ret->columns(), *groupCtx));
+        NG_RETURN_IF_ERROR(validateGroup(retClauseCtx.yieldColumns, *groupCtx));
         retClauseCtx.group = std::move(groupCtx);
     }
 
@@ -666,7 +687,6 @@ Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
         }
 
         auto colExpr = col->expr();
-        // collect exprs for check later
         if (colExpr->kind() == Expression::Kind::kAggregate) {
             auto* aggExpr = static_cast<AggregateExpression*>(colExpr);
             NG_RETURN_IF_ERROR(ExpressionUtils::checkAggExpr(aggExpr));
@@ -675,8 +695,8 @@ Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
         }
 
         groupCtx.groupItems_.emplace_back(colExpr);
-        auto status = deduceExprType(colExpr);
-        NG_RETURN_IF_ERROR(status);
+        // auto status = deduceExprType(colExpr);
+        // NG_RETURN_IF_ERROR(status);
         // auto type = std::move(status).value();
         std::string name;
         if (!rewrited) {
@@ -707,6 +727,7 @@ Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
 Status MatchValidator::buildOutputs(const YieldColumns* yields) {
     for (auto* col : yields->columns()) {
         auto colName = deduceColName(col);
+        // error here, bcz match vars has not be set, I rewrited expr.. (czp)
         auto typeStatus = deduceExprType(col->expr());
         NG_RETURN_IF_ERROR(typeStatus);
         auto type = typeStatus.value();
