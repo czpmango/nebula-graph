@@ -93,7 +93,9 @@ struct PaginationContext final : CypherClauseContextBase {
 };
 
 struct YieldClauseContext final : CypherClauseContextBase {
-    YieldClauseContext() : CypherClauseContextBase(CypherClauseKind::kYield) {}
+    YieldClauseContext() : CypherClauseContextBase(CypherClauseKind::kYield) {
+        projCols_ = qctx->objPool()->add(new YieldColumns());
+    }
 
     bool                                              distinct{false};
     const YieldColumns*                               yieldColumns{nullptr};
@@ -104,9 +106,8 @@ struct YieldClauseContext final : CypherClauseContextBase {
     YieldColumns*                                     projCols_;
     std::vector<Expression*>                          groupKeys_;
     std::vector<Expression*>                          groupItems_;
-
-    // std::vector<std::string>                          outputColumnNames_;
-    // std::vector<std::string>                          projOutputColumnNames_;
+    std::vector<std::string>                          aggOutputColumnNames_;
+    std::vector<std::string>                          projOutputColumnNames_;
 };
 
 struct ReturnClauseContext final : CypherClauseContextBase {

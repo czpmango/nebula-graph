@@ -58,7 +58,7 @@ Status MatchValidator::validateImpl() {
                 aliasesUsed = &matchClauseCtx->aliasesGenerated;
 
                 if (i == clauses.size() - 1) {
-                    retClauseCtx->aliasesUsed = aliasesUsed;
+                    retClauseCtx->yield->aliasesUsed = aliasesUsed;
                     NG_RETURN_IF_ERROR(
                         validateReturn(sentence->ret(), matchClauseCtx.get(), *retClauseCtx));
                 }
@@ -85,7 +85,7 @@ Status MatchValidator::validateImpl() {
                 prevYieldColumns = const_cast<YieldColumns *>(unwindClauseCtx->yieldColumns);
 
                 if (i == clauses.size() - 1) {
-                    retClauseCtx->aliasesUsed = aliasesUsed;
+                    retClauseCtx->yield->aliasesUsed = aliasesUsed;
                     NG_RETURN_IF_ERROR(
                         validateReturn(sentence->ret(), unwindClauseCtx.get(), *retClauseCtx));
                 }
@@ -110,7 +110,7 @@ Status MatchValidator::validateImpl() {
                 prevYieldColumns = const_cast<YieldColumns *>(withClauseCtx->yieldColumns);
 
                 if (i == clauses.size() - 1) {
-                    retClauseCtx->aliasesUsed = aliasesUsed;
+                    retClauseCtx->yield->aliasesUsed = aliasesUsed;
                     NG_RETURN_IF_ERROR(
                         validateReturn(sentence->ret(), withClauseCtx.get(), *retClauseCtx));
                 }
@@ -121,7 +121,7 @@ Status MatchValidator::validateImpl() {
         }
     }
 
-    NG_RETURN_IF_ERROR(buildOutputs(retClauseCtx->yieldColumns));
+    NG_RETURN_IF_ERROR(buildOutputs(retClauseCtx->yield->yieldColumns));
     matchCtx_->clauses.emplace_back(std::move(retClauseCtx));
     return Status::OK();
 }
@@ -351,30 +351,28 @@ Status MatchValidator::validateReturn(MatchReturn *ret,
     }
 
     if (columns == nullptr) {
-        retClauseCtx.yieldColumns = ret->columns();
+        retClauseCtx.yield->yieldColumns = ret->columns();
     } else {
-        retClauseCtx.yieldColumns = columns;
+        retClauseCtx.yield->yieldColumns = columns;
     }
 
-    bool hasAgg = false;
     // Check all referencing expressions are valid
     std::vector<const Expression*> exprs;
-    exprs.reserve(retClauseCtx.yieldColumns->size());
-    for (auto *col : retClauseCtx.yieldColumns->columns()) {
+    exprs.reserve(retClauseCtx.yield->yieldColumns->size());
+    for (auto *col : retClauseCtx.yield->yieldColumns->columns()) {
+        // TODO : modify to visitor nested check  (czp)
         if (col->expr()->kind() == Expression::Kind::kAggregate) {
-            hasAgg = true;
+            retClauseCtx.yield->hasAgg_ = true;
         }
         exprs.push_back(col->expr());
     }
-    NG_RETURN_IF_ERROR(validateAliases(exprs, retClauseCtx.aliasesUsed));
+    NG_RETURN_IF_ERROR(validateAliases(exprs, retClauseCtx.yield->aliasesUsed));
 
-    if (hasAgg) {
-        auto groupCtx = getContext<GroupClauseContext>();
-        NG_RETURN_IF_ERROR(validateGroup(retClauseCtx.yieldColumns, *groupCtx));
-        retClauseCtx.group = std::move(groupCtx);
-    }
+    auto yieldCtx = getContext<YieldClauseContext>();
+    NG_RETURN_IF_ERROR(validateYield(*yieldCtx));
+    retClauseCtx.yield = std::move(yieldCtx);
 
-    retClauseCtx.distinct = ret->isDistinct();
+    retClauseCtx.yield->distinct = ret->isDistinct();
 
     auto paginationCtx = getContext<PaginationContext>();
     NG_RETURN_IF_ERROR(validatePagination(ret->skip(), ret->limit(), *paginationCtx));
@@ -641,26 +639,21 @@ Status MatchValidator::validateOrderBy(const OrderFactors *factors,
     return Status::OK();
 }
 
-Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
-                                       GroupClauseContext &groupCtx) const {
-    auto cols = yieldColumns->columns();
-    if (cols.empty()) {
-        return Status::SemanticError("Return cols is Empty");
-    }
-
-    groupCtx.projCols_ = groupCtx.qctx->objPool()->add(new YieldColumns);
+Status MatchValidator::validateGroup(YieldClauseContext &yieldCtx) const {
+    auto cols = yieldCtx.yieldColumns->columns();
+    DCHECK(!cols.empty());
     for (auto* col : cols) {
         auto rewrited = false;
         auto colOldName = deduceColName(col);
         if (col->expr()->kind() != Expression::Kind::kAggregate) {
-            // rewritedExpr will dive into Proj PlanNode  (MLC?)
+            // rewritedExpr will dive into Proj PlanNode  (MLC?) (czp)
             auto* rewritedExpr = col->expr()->clone().release();
             AggregateExpression* innerAggExpr = nullptr;
             NG_RETURN_IF_ERROR(ExpressionUtils::rewriteInnerAggExpr(rewritedExpr, innerAggExpr));
             if (innerAggExpr) {
                 rewrited = true;
-                groupCtx.needGenProject_ = true;
-                groupCtx.projCols_->addColumn(new YieldColumn(rewritedExpr,
+                yieldCtx.needGenProject_ = true;
+                yieldCtx.projCols_->addColumn(new YieldColumn(rewritedExpr,
                                               new std::string(colOldName)));
                 col->setExpr(innerAggExpr);
             }
@@ -671,37 +664,46 @@ Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
             auto* aggExpr = static_cast<AggregateExpression*>(colExpr);
             NG_RETURN_IF_ERROR(ExpressionUtils::checkAggExpr(aggExpr));
         } else if (!ExpressionUtils::isEvaluableExpr(colExpr)) {
-            groupCtx.groupKeys_.emplace_back(colExpr);
+            yieldCtx.groupKeys_.emplace_back(colExpr);
         }
 
-        groupCtx.groupItems_.emplace_back(colExpr);
-        // auto status = deduceExprType(colExpr);
-        // NG_RETURN_IF_ERROR(status);
-        // auto type = std::move(status).value();
-        std::string name;
+        yieldCtx.groupItems_.emplace_back(colExpr);
+        std::string colNewName;
         if (!rewrited) {
-            name = deduceColName(col);
-            groupCtx.projCols_->addColumn(new YieldColumn(
+            colNewName = deduceColName(col);
+            yieldCtx.projCols_->addColumn(new YieldColumn(
                 new VariablePropertyExpression(new std::string(),
-                                           new std::string(name)),
+                                           new std::string(colNewName)),
                 new std::string(colOldName)));
         } else {
-            name = colExpr->toString();
+            colNewName = colExpr->toString();
         }
-        groupCtx.projOutputColumnNames_.emplace_back(colOldName);
-        // outputs_.emplace_back(name, type);
-        groupCtx.outputColumnNames_.emplace_back(name);
-
-        // if (col->alias() != nullptr && !rewrited) {
-        //     aliases_.emplace(*col->alias(), col);
-        // }
-        // ExpressionProps yieldProps;
-        // NG_RETURN_IF_ERROR(deduceProps(colExpr, yieldProps));
-        // exprProps_.unionProps(std::move(yieldProps));
+        yieldCtx.projOutputColumnNames_.emplace_back(colOldName);
+        yieldCtx.aggOutputColumnNames_.emplace_back(colNewName);
     }
 
-    // groupCtx.needGenProject_ = needGenProject;
     return Status::OK();
+}
+
+Status MatchValidator::validateYield(YieldClauseContext &yieldCtx) const {
+    auto cols = yieldCtx.yieldColumns->columns();
+    if (cols.empty()) {
+        return Status::SemanticError("Return yield columns is Empty.");
+    }
+
+    if (!yieldCtx.hasAgg_) {
+        for (auto& col : yieldCtx.yieldColumns->columns()) {
+            yieldCtx.projCols_->addColumn(col->clone().release());
+            if (col->alias() != nullptr) {
+                yieldCtx.projOutputColumnNames_.emplace_back(*col->alias());
+            } else {
+                yieldCtx.projOutputColumnNames_.emplace_back(col->expr()->toString());
+            }
+        }
+        return Status::OK();
+    } else {
+        return validateGroup(yieldCtx);
+    }
 }
 
 Status MatchValidator::buildOutputs(const YieldColumns* yields) {
