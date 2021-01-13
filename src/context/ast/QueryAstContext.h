@@ -24,7 +24,7 @@ enum class CypherClauseKind : uint8_t {
     kReturn,
     kOrderBy,
     kPagination,
-    kGroup,
+    kYield,
 };
 
 enum class PatternKind : uint8_t {
@@ -92,29 +92,32 @@ struct PaginationContext final : CypherClauseContextBase {
     int64_t     limit{std::numeric_limits<int64_t>::max()};
 };
 
-struct GroupClauseContext final : CypherClauseContextBase {
-    GroupClauseContext() : CypherClauseContextBase(CypherClauseKind::kGroup) {}
+struct YieldClauseContext final : CypherClauseContextBase {
+    YieldClauseContext() : CypherClauseContextBase(CypherClauseKind::kYield) {}
 
+    bool                                              distinct{false};
+    const YieldColumns*                               yieldColumns{nullptr};
+    std::unordered_map<std::string, AliasType>*       aliasesUsed{nullptr};
+
+    bool                                              hasAgg_{false};
     bool                                              needGenProject_{false};
-    std::vector<std::string>                          outputColumnNames_;
-    std::vector<std::string>                          projOutputColumnNames_;
-
-    // used to generate Project node when there is an internally nested aggregateExpression
     YieldColumns*                                     projCols_;
-
     std::vector<Expression*>                          groupKeys_;
     std::vector<Expression*>                          groupItems_;
+
+    // std::vector<std::string>                          outputColumnNames_;
+    // std::vector<std::string>                          projOutputColumnNames_;
 };
 
 struct ReturnClauseContext final : CypherClauseContextBase {
     ReturnClauseContext() : CypherClauseContextBase(CypherClauseKind::kReturn) {}
 
-    bool                                         distinct{false};
-    const YieldColumns*                          yieldColumns{nullptr};
+    // bool                                         distinct{false};
+    // const YieldColumns*                          yieldColumns{nullptr};
     std::unique_ptr<OrderByClauseContext>        order;
     std::unique_ptr<PaginationContext>           pagination;
-    std::unique_ptr<GroupClauseContext>          group;
-    std::unordered_map<std::string, AliasType>*  aliasesUsed{nullptr};
+    std::unique_ptr<YieldClauseContext>          yield;
+    // std::unordered_map<std::string, AliasType>*  aliasesUsed{nullptr};
 };
 
 struct WithClauseContext final : CypherClauseContextBase {

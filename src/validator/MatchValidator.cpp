@@ -707,7 +707,6 @@ Status MatchValidator::validateGroup(const YieldColumns *yieldColumns,
 Status MatchValidator::buildOutputs(const YieldColumns* yields) {
     for (auto* col : yields->columns()) {
         auto colName = deduceColName(col);
-        // error here, bcz match vars has not be set, I rewrited expr.. (czp)
         auto typeStatus = deduceExprType(col->expr());
         NG_RETURN_IF_ERROR(typeStatus);
         auto type = typeStatus.value();

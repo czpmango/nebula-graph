@@ -22,7 +22,23 @@ StatusOr<SubPlan> GroupClausePlanner::transform(CypherClauseContextBase* clauseC
 }
 
 Status GroupClausePlanner::buildGroup(GroupClauseContext* gctx, SubPlan& subplan) {
+    // TODO: rewrite LabelExpression inside groupKeys_ or groupItems_ to VariablePropExpr (czp)
     auto* currentRoot = subplan.root;
+    auto rewriter = [gctx](const std::vector<Expression*> exprs) {
+        vector<Expression*> newExprs;
+        for (auto* expr : exprs) {
+            auto kind = expr->kind();
+            if (kind == Expression::Kind::kLabel || kind == Expression::Kind::kLabelAttribute) {
+                newExprs.emplace_back(MatchSolver::doRewrite(*gctx->rctx->aliasesUsed, expr));
+            } else {
+                auto newExpr = expr()->clone();
+                RewriteMatchLabelVisitor visitor(rewriter);
+                newExpr->accept(&visitor);
+                newExprs.emplace_back(newExpr.release());
+            }
+        }
+        return MatchSolver::doRewrite(*rctx->aliasesUsed, expr);
+    };
     auto* agg = Aggregate::make(gctx->qctx,
                                 currentRoot,
                                 std::move(gctx->groupKeys_),
