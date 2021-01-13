@@ -93,9 +93,7 @@ struct PaginationContext final : CypherClauseContextBase {
 };
 
 struct YieldClauseContext final : CypherClauseContextBase {
-    YieldClauseContext() : CypherClauseContextBase(CypherClauseKind::kYield) {
-        projCols_ = qctx->objPool()->add(new YieldColumns());
-    }
+    YieldClauseContext() : CypherClauseContextBase(CypherClauseKind::kYield) {}
 
     bool                                              distinct{false};
     const YieldColumns*                               yieldColumns{nullptr};

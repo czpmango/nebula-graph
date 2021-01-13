@@ -31,6 +31,8 @@ Status MatchValidator::validateImpl() {
     std::unordered_map<std::string, AliasType> *aliasesUsed = nullptr;
     YieldColumns *prevYieldColumns = nullptr;
     auto retClauseCtx = getContext<ReturnClauseContext>();
+    auto yieldCtx = getContext<YieldClauseContext>();
+    retClauseCtx->yield = std::move(yieldCtx);
     for (size_t i = 0; i < clauses.size(); ++i) {
         switch (clauses[i]->kind()) {
             case ReadingClause::Kind::kMatch: {
@@ -367,10 +369,7 @@ Status MatchValidator::validateReturn(MatchReturn *ret,
         exprs.push_back(col->expr());
     }
     NG_RETURN_IF_ERROR(validateAliases(exprs, retClauseCtx.yield->aliasesUsed));
-
-    auto yieldCtx = getContext<YieldClauseContext>();
-    NG_RETURN_IF_ERROR(validateYield(*yieldCtx));
-    retClauseCtx.yield = std::move(yieldCtx);
+    NG_RETURN_IF_ERROR(validateYield(*retClauseCtx.yield));
 
     retClauseCtx.yield->distinct = ret->isDistinct();
 
@@ -691,6 +690,7 @@ Status MatchValidator::validateYield(YieldClauseContext &yieldCtx) const {
         return Status::SemanticError("Return yield columns is Empty.");
     }
 
+    yieldCtx.projCols_ = yieldCtx.qctx->objPool()->add(new YieldColumns());
     if (!yieldCtx.hasAgg_) {
         for (auto& col : yieldCtx.yieldColumns->columns()) {
             yieldCtx.projCols_->addColumn(col->clone().release());

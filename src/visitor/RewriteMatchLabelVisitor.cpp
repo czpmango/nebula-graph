@@ -37,6 +37,14 @@ void RewriteMatchLabelVisitor::visit(FunctionCallExpression *expr) {
     }
 }
 
+void RewriteMatchLabelVisitor::visit(AggregateExpression *expr) {
+    auto arg = expr->arg();
+    if (isLabel(arg)) {
+        arg = rewriter_(arg);
+    } else {
+        arg->accept(this);
+    }
+}
 
 void RewriteMatchLabelVisitor::visit(AttributeExpression *expr) {
     if (isLabel(expr->left())) {
