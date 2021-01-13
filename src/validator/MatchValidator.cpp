@@ -356,26 +356,6 @@ Status MatchValidator::validateReturn(MatchReturn *ret,
         retClauseCtx.yieldColumns = columns;
     }
 
-    // wrap the rewrite code block
-    auto* yields = retClauseCtx.qctx->objPool()->add(new YieldColumns());
-    auto rewriter = [&retClauseCtx](const Expression* expr) {
-        return MatchSolver::doRewrite(*retClauseCtx.aliasesUsed, expr);
-    };
-    for (auto* col : retClauseCtx.yieldColumns->columns()) {
-        auto exprKind = col->expr()->kind();
-        YieldColumn* newColumn = nullptr;
-        if (exprKind == Expression::Kind::kLabel || exprKind == Expression::Kind::kLabelAttribute) {
-            newColumn = new YieldColumn(rewriter(col->expr()));
-        } else {
-            auto newExpr = col->expr()->clone();
-            RewriteMatchLabelVisitor visitor(rewriter);
-            newExpr->accept(&visitor);
-            newColumn = new YieldColumn(newExpr.release());
-        }
-        yields->addColumn(newColumn);
-    }
-    retClauseCtx.yieldColumns = yields;
-
     bool hasAgg = false;
     // Check all referencing expressions are valid
     std::vector<const Expression*> exprs;
