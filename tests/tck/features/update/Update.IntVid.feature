@@ -249,7 +249,7 @@ Feature: Update int vid of vertex and edge
       WHEN nonexistentEdgeName.grade > 4 AND $^.student.nonexistentProperty > 15
       YIELD $^.nonexistentTag.name AS Name, select.nonexistentProperty AS Grade
       """
-    Then a SemanticError should be raised at runtime: Has wrong expr in `((nonexistentEdgeName.grade>4) AND ($^.student.nonexistentProperty>15))'
+    Then a SemanticError should be raised at runtime: `$^.student.nonexistentProperty', not found the property `nonexistentProperty'.
     # make sure the edge_type must not exist
     When executing query:
       """
@@ -314,7 +314,7 @@ Feature: Update int vid of vertex and edge
       SET student_default.name = "Lily", student_default.age = "10"
       YIELD $^.student_default.name AS Name, $^.student_default.gender AS Gender
       """
-    Then a ExecutionError should be raised at runtime: Storage Error: Atomic operation failed.
+    Then a ExecutionError should be raised at runtime: Storage Error: Invalid data, may be wrong value type.
     # Insertable: vertex 113 ("Jack") --> ("Jack", "Three")
     # 113 is nonexistent, gender with default value,
     # update student_default.age with string value
@@ -324,7 +324,7 @@ Feature: Update int vid of vertex and edge
       SET student_default.name = "Ann", student_default.age = "10"
       YIELD $^.student_default.name AS Name, $^.student_default.gender AS Gender
       """
-    Then a ExecutionError should be raised at runtime: Storage Error: Atomic operation failed.
+    Then a ExecutionError should be raised at runtime: Storage Error: Invalid data, may be wrong value type.
     # Insertable success, 115 is nonexistent, name and age without default value,
     # the filter is always true.
     When executing query:
