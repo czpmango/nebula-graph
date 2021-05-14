@@ -125,13 +125,12 @@ static constexpr size_t kCommentLengthLimit = 256;
     nebula::BothInOutClause                *both_in_out_clause;
     ExpressionList                         *expression_list;
     MapItemList                            *map_item_list;
-    MatchPath                              *match_path;
-    MatchNode                              *match_node;
-    MatchNodeLabel                         *match_node_label;
-    MatchNodeLabelList                     *match_node_label_list;
-    MatchEdge                              *match_edge;
-    MatchEdgeProp                          *match_edge_prop;
-    MatchEdgeTypeList                      *match_edge_type_list;
+    PathPattern                            *path_pattern;
+    NodePattern                            *node_pattern;
+    EdgePattern                            *edge_pattern;
+    EdgePattern                            *edge_pattern_directionless;
+    LabelList                              *label_list;
+    LabelList                              *match_edge_type_list;
     MatchReturn                            *match_return;
     ReadingClause                          *reading_clause;
     MatchClauseList                        *match_clause_list;
@@ -286,19 +285,16 @@ static constexpr size_t kCommentLengthLimit = 256;
 %type <expr> case_condition
 %type <expr> case_default
 
-%type <match_path> match_path_pattern
-%type <match_path> match_path
-%type <match_node> match_node
-%type <match_node_label> match_node_label
-%type <match_node_label_list> match_node_label_list
-%type <match_edge> match_edge
-%type <match_edge_prop> match_edge_prop
+%type <path_pattern> path_pattern
+%type <node_pattern> node_pattern
+%type <edge_pattern> edge_pattern
+%type <edge_pattern_directionless> edge_pattern_directionless
 %type <match_return> match_return
 %type <expr> match_skip
 %type <expr> match_limit
 %type <strval> match_alias
 %type <match_edge_type_list> match_edge_type_list
-%type <match_edge_type_list> opt_match_edge_type_list
+%type <label_list> label_list
 %type <reading_clause> unwind_clause with_clause match_clause reading_clause
 %type <match_clause_list> reading_clauses reading_with_clause reading_with_clauses
 %type <match_step_range> match_step_range
@@ -1331,7 +1327,7 @@ with_clause
     ;
 
 match_clause
-    : KW_MATCH match_path where_clause {
+    : KW_MATCH path_pattern where_clause {
         if ($3 && graph::ExpressionUtils::findAny($3->filter(),{Expression::Kind::kAggregate})) {
             delete($2);
             delete($3);
@@ -1340,7 +1336,7 @@ match_clause
             $$ = new MatchClause($2, $3, false/*optinal*/);
         }
     }
-    | KW_OPTIONAL KW_MATCH match_path where_clause {
+    | KW_OPTIONAL KW_MATCH path_pattern where_clause {
         if ($4 && graph::ExpressionUtils::findAny($4->filter(),{Expression::Kind::kAggregate})) {
             delete($3);
             delete($4);
@@ -1405,55 +1401,43 @@ match_sentence
     }
     ;
 
-match_path_pattern
-    : match_node {
-        $$ = new MatchPath($1);
+path_pattern
+    : node_pattern {
+        $$ = new PathPattern($1);
     }
-    | match_path_pattern match_edge match_node {
+    | path_pattern edge_pattern node_pattern {
         $$ = $1;
-        $$->add($2, $3);
+        $1->setEdge($2);
+        $1->setRightNode($3);
     }
-    ;
-
-match_path
-    : match_path_pattern {
-        $$ = $1;
-    }
-    | name_label ASSIGN match_path_pattern {
+    | name_label ASSIGN path_pattern {
         $$ = $3;
-        $$->setAlias($1);
+        $3->setAlias($1);
     }
     ;
 
-match_node
+node_pattern
     : L_PAREN match_alias R_PAREN {
-        $$ = new MatchNode($2, nullptr, nullptr);
+        $$ = new NodePattern($2, {}, nullptr);
     }
-    | L_PAREN match_alias match_node_label_list R_PAREN {
-        $$ = new MatchNode($2, $3, nullptr);
+    | L_PAREN match_alias label_list R_PAREN {
+        $$ = new NodePattern($2, $3, nullptr);
     }
     | L_PAREN match_alias map_expression R_PAREN {
-        $$ = new MatchNode($2, nullptr, $3);
+        $$ = new NodePattern($2, {}, $3);
+    }
+    | L_PAREN match_alias label_list map_expression R_PAREN {
+        $$ = new NodePattern($2, $3, $4);
     }
     ;
 
-match_node_label
+label_list
     : COLON name_label {
-        $$ = new MatchNodeLabel($2);
+        $$ = LabelList({$2});
     }
-    | COLON name_label map_expression {
-        $$ = new MatchNodeLabel($2, $3);
-    }
-    ;
-
-match_node_label_list
-    : match_node_label {
-        $$ = new MatchNodeLabelList();
-        $$->add($1);
-    }
-    | match_node_label_list match_node_label {
+    | label_list COLON name_label {
         $$ = $1;
-        $1->add($2);
+        $1.addItem($3);
     }
     ;
 
@@ -1466,75 +1450,71 @@ match_alias
     }
     ;
 
-match_edge
-    : MINUS match_edge_prop MINUS {
-        $$ = new MatchEdge($2, storage::cpp2::EdgeDirection::BOTH);
+edge_pattern
+    : MINUS edge_pattern_directionless MINUS {
+        $$ = $2;
+        $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
-    | MINUS match_edge_prop R_ARROW {
-        $$ = new MatchEdge($2, storage::cpp2::EdgeDirection::OUT_EDGE);
+    | L_ARROW edge_pattern_directionless R_ARROW {
+        $$ = $2;
+        $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
-    | L_ARROW match_edge_prop MINUS {
-        $$ = new MatchEdge($2, storage::cpp2::EdgeDirection::IN_EDGE);
+    | MINUS edge_pattern_directionless R_ARROW {
+        $$ = $2;
+        $2->setDirection(storage::cpp2::EdgeDirection::OUT_EDGE);
     }
-    | L_ARROW match_edge_prop R_ARROW {
-        $$ = new MatchEdge($2, storage::cpp2::EdgeDirection::BOTH);
-    }
-    ;
-
-match_edge_prop
-    : %empty {
-        $$ = nullptr;
-    }
-    | L_BRACKET match_alias opt_match_edge_type_list match_step_range R_BRACKET {
-        $$ = new MatchEdgeProp($2, $3, $4, nullptr);
-    }
-    | L_BRACKET match_alias opt_match_edge_type_list match_step_range map_expression R_BRACKET {
-        $$ = new MatchEdgeProp($2, $3, $4, $5);
+    | L_ARROW edge_pattern_directionless MINUS {
+        $$ = $2;
+        $2->setDirection(storage::cpp2::EdgeDirection::IN_EDGE);
     }
     ;
 
-opt_match_edge_type_list
-    : %empty {
-        $$ = nullptr;
+edge_pattern_directionless
+    : L_PAREN match_alias R_PAREN {
+        $$ = new EdgePattern($2, {}, nullptr, {1, 1});
     }
-    | match_edge_type_list {
-        $$ = $1;
+    | L_PAREN match_alias match_edge_type_list R_PAREN {
+        $$ = new EdgePattern($2, $3, nullptr, {1, 1});
+    }
+    | L_PAREN match_alias match_edge_type_list map_expression R_PAREN {
+        $$ = new EdgePattern($2, $3, $4, {1, 1});
+    }
+    | L_PAREN match_alias match_edge_type_list map_expression match_step_range R_PAREN {
+        $$ = new EdgePattern($2, $3, $4, $5);
     }
     ;
 
 match_step_range
     : %empty {
-        $$ = nullptr;
+        $$ = std::pair(1, 1);
     }
     | STAR {
-        $$ = new MatchStepRange(1);
+        $$ = std::pair(1, std::numeric_limits<int64_t>::max());
     }
     | STAR legal_integer {
-        $$ = new MatchStepRange($2, $2);
+        $$ = std::pair($2, $2);
     }
     | STAR DOT_DOT legal_integer {
-        $$ = new MatchStepRange(1, $3);
+        $$ = std::pair(1, $3);
     }
     | STAR legal_integer DOT_DOT {
-        $$ = new MatchStepRange($2);
+        $$ = std::pair($2, std::numeric_limits<int64_t>::max());
     }
     | STAR legal_integer DOT_DOT legal_integer {
-        $$ = new MatchStepRange($2, $4);
+        $$ = std::pair($2, $4);
     }
     ;
 
 match_edge_type_list
-    : COLON name_label {
-        $$ = new MatchEdgeTypeList();
-        $$->add($2);
+    : %empty {
+        $$ = LabelList({});
+    }
+    | COLON name_label {
+        $$ = LabelList({$2});
     }
     | match_edge_type_list PIPE name_label {
         $$ = $1;
-        $$->add($3);
-    }
-    | match_edge_type_list PIPE COLON name_label {
-        $$ = $1;
-        $$->add($4);
+        $$.addItem($3);
     }
     ;
 

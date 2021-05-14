@@ -9,9 +9,9 @@
 
 #include "common/expression/ContainerExpression.h"
 #include "common/expression/SubscriptExpression.h"
+#include "parser/Clauses.h"
 #include "parser/Sentence.h"
 #include "parser/TraverseSentences.h"
-#include "parser/Clauses.h"
 
 namespace nebula {
 
@@ -25,6 +25,10 @@ public:
 
     std::string* alias() {
         return alias_.get();
+    }
+
+    void setAlias(std::string* alias) {
+        alias_.reset(alias);
     }
 
     std::unordered_set<std::string> allAliases() {
@@ -68,7 +72,7 @@ public:
                          std::vector<std::string> edgeTypes,
                          MapExpression* props,
                          std::pair<int, int> range,
-                         EdgePattern::Direction direction) {
+                         EdgePattern::Direction direction = {EdgePattern::Direction::OUT_EDGE}) {
         alias_.reset(alias);
         edgeTypes_ = std::move(edgeTypes);
         props_.reset(props);
@@ -96,6 +100,10 @@ public:
         return direction_;
     }
 
+    void setDirection(EdgePattern::Direction direction) {
+        direction_ = direction;
+    }
+
 private:
     std::unique_ptr<std::string> alias_;
     std::vector<std::string> edgeTypes_{};
@@ -103,12 +111,13 @@ private:
     std::unique_ptr<MapExpression> props_;
     EdgePattern::Direction direction_{EdgePattern::Direction::OUT_EDGE};
 };
-class ChainPattern final : public PatternElement {
+class PathPattern final : public PatternElement {
 public:
-    explicit ChainPattern(std::string* alias,
-                          PatternElement* element,
-                          EdgePattern* edge,
-                          NodePattern* rightNode)
+    explicit PathPattern(
+                         PatternElement* element,
+                         EdgePattern* edge,
+                         NodePattern* rightNode,
+                         std::string* alias = nullptr)
         : PatternElement(alias, false) {
         element_.reset(element);
         edge_.reset(edge);
@@ -123,8 +132,16 @@ public:
         return edge_.get();
     }
 
+    void setEdge(EdgePattern* edge) {
+        edge_.reset(edge);
+    }
+
     NodePattern* rightNode() {
         return rightNode_.get();
+    }
+
+    void setRightNode(NodePattern* rightNode) {
+        rightNode_.reset(rightNode);
     }
 
 private:
@@ -133,11 +150,31 @@ private:
     std::unique_ptr<NodePattern> rightNode_;
 };
 
+class LabelList final {
+public:
+    explicit LabelList(std::vector<std::string> items) {
+        items_ = items;
+    }
+
+    std::vector<std::string> items() {
+        return items;
+    }
+
+    void addItem(std::string item) {
+        items_.emplace_back(item);
+    }
+
+private:
+    std::vector<std::string> items_;
+};
+
+// TODO: delete this line -----------------
+
 class MatchEdgeTypeList final {
 public:
     MatchEdgeTypeList() = default;
 
-    void add(std::string *item) {
+    void add(std::string* item) {
         items_.emplace_back(item);
     }
 
@@ -146,9 +183,8 @@ public:
     }
 
 private:
-    std::vector<std::unique_ptr<std::string>>           items_;
+    std::vector<std::unique_ptr<std::string>> items_;
 };
-
 
 class MatchStepRange final {
 public:
@@ -166,17 +202,16 @@ public:
     }
 
 private:
-    int64_t         min_{1};
-    int64_t         max_{1};
+    int64_t min_{1};
+    int64_t max_{1};
 };
-
 
 class MatchEdgeProp final {
 public:
-    MatchEdgeProp(std::string *alias,
-                  MatchEdgeTypeList *types,
-                  MatchStepRange *range,
-                  Expression *props = nullptr) {
+    MatchEdgeProp(std::string* alias,
+                  MatchEdgeTypeList* types,
+                  MatchStepRange* range,
+                  Expression* props = nullptr) {
         alias_.reset(alias);
         range_.reset(range);
         props_.reset(static_cast<MapExpression*>(props));
@@ -187,24 +222,21 @@ public:
     }
 
     auto get() && {
-        return std::make_tuple(std::move(alias_),
-                               std::move(types_),
-                               std::move(range_),
-                               std::move(props_));
+        return std::make_tuple(
+            std::move(alias_), std::move(types_), std::move(range_), std::move(props_));
     }
 
 private:
-    std::unique_ptr<std::string>                        alias_;
-    std::vector<std::unique_ptr<std::string>>           types_;
-    std::unique_ptr<MapExpression>                      props_;
-    std::unique_ptr<MatchStepRange>                     range_;
+    std::unique_ptr<std::string> alias_;
+    std::vector<std::unique_ptr<std::string>> types_;
+    std::unique_ptr<MapExpression> props_;
+    std::unique_ptr<MatchStepRange> range_;
 };
-
 
 class MatchEdge final {
 public:
     using Direction = nebula::storage::cpp2::EdgeDirection;
-    MatchEdge(MatchEdgeProp *prop, Direction direction) {
+    MatchEdge(MatchEdgeProp* prop, Direction direction) {
         if (prop != nullptr) {
             auto tuple = std::move(*prop).get();
             alias_ = std::move(std::get<0>(tuple));
@@ -239,18 +271,18 @@ public:
     std::string toString() const;
 
 private:
-    Direction                                       direction_;
-    std::unique_ptr<std::string>                    alias_;
-    std::vector<std::unique_ptr<std::string>>       types_;
-    std::unique_ptr<MatchStepRange>                 range_;
-    std::unique_ptr<MapExpression>                  props_;
+    Direction direction_;
+    std::unique_ptr<std::string> alias_;
+    std::vector<std::unique_ptr<std::string>> types_;
+    std::unique_ptr<MatchStepRange> range_;
+    std::unique_ptr<MapExpression> props_;
 };
 
 class MatchNodeLabel final {
 public:
-    explicit MatchNodeLabel(std::string *label, Expression *props = nullptr) :
-        label_(label), props_(static_cast<MapExpression*>(props)) {
-            DCHECK(props == nullptr || props->kind() == Expression::Kind::kMap);
+    explicit MatchNodeLabel(std::string* label, Expression* props = nullptr)
+        : label_(label), props_(static_cast<MapExpression*>(props)) {
+        DCHECK(props == nullptr || props->kind() == Expression::Kind::kMap);
     }
 
     const std::string* label() const {
@@ -275,13 +307,13 @@ public:
     }
 
 private:
-    std::unique_ptr<std::string>                    label_;
-    std::unique_ptr<MapExpression>                  props_;
+    std::unique_ptr<std::string> label_;
+    std::unique_ptr<MapExpression> props_;
 };
 
 class MatchNodeLabelList final {
 public:
-    void add(MatchNodeLabel *label) {
+    void add(MatchNodeLabel* label) {
         labels_.emplace_back(label);
     }
 
@@ -291,7 +323,7 @@ public:
 
     std::string toString() const {
         std::stringstream ss;
-        for (const auto &label : labels_) {
+        for (const auto& label : labels_) {
             ss << label->toString();
         }
         return ss.str();
@@ -303,9 +335,7 @@ private:
 
 class MatchNode final {
 public:
-    MatchNode(std::string *alias,
-              MatchNodeLabelList *labels,
-              Expression *props = nullptr) {
+    MatchNode(std::string* alias, MatchNodeLabelList* labels, Expression* props = nullptr) {
         alias_.reset(alias);
         labels_.reset(labels);
         props_.reset(static_cast<MapExpression*>(props));
@@ -326,24 +356,23 @@ public:
     std::string toString() const;
 
 private:
-    std::unique_ptr<std::string>                    alias_;
-    std::unique_ptr<MatchNodeLabelList>             labels_;
-    std::unique_ptr<MapExpression>                  props_;
+    std::unique_ptr<std::string> alias_;
+    std::unique_ptr<MatchNodeLabelList> labels_;
+    std::unique_ptr<MapExpression> props_;
 };
-
 
 class MatchPath final {
 public:
-    explicit MatchPath(MatchNode *node) {
+    explicit MatchPath(MatchNode* node) {
         nodes_.emplace_back(node);
     }
 
-    void add(MatchEdge *edge, MatchNode *node) {
+    void add(MatchEdge* edge, MatchNode* node) {
         edges_.emplace_back(edge);
         nodes_.emplace_back(node);
     }
 
-    void setAlias(std::string *alias) {
+    void setAlias(std::string* alias) {
         alias_.reset(alias);
     }
 
@@ -374,18 +403,17 @@ public:
     std::string toString() const;
 
 private:
-    std::unique_ptr<std::string>                    alias_;
-    std::vector<std::unique_ptr<MatchNode>>         nodes_;
-    std::vector<std::unique_ptr<MatchEdge>>         edges_;
+    std::unique_ptr<std::string> alias_;
+    std::vector<std::unique_ptr<MatchNode>> nodes_;
+    std::vector<std::unique_ptr<MatchEdge>> edges_;
 };
-
 
 class MatchReturn final {
 public:
-    explicit MatchReturn(YieldColumns *columns = nullptr,
-                         OrderFactors *orderFactors = nullptr,
-                         Expression *skip = nullptr,
-                         Expression *limit = nullptr,
+    explicit MatchReturn(YieldColumns* columns = nullptr,
+                         OrderFactors* orderFactors = nullptr,
+                         Expression* skip = nullptr,
+                         Expression* limit = nullptr,
                          bool distinct = false) {
         columns_.reset(columns);
         orderFactors_.reset(orderFactors);
@@ -401,7 +429,7 @@ public:
         return columns_.get();
     }
 
-    void setColumns(YieldColumns *columns) {
+    void setColumns(YieldColumns* columns) {
         columns_.reset(columns);
     }
 
@@ -432,18 +460,17 @@ public:
     std::string toString() const;
 
 private:
-    std::unique_ptr<YieldColumns>                   columns_;
-    bool                                            isAll_{false};
-    bool                                            isDistinct_{false};
-    std::unique_ptr<OrderFactors>                   orderFactors_;
-    std::unique_ptr<Expression>                     skip_;
-    std::unique_ptr<Expression>                     limit_;
+    std::unique_ptr<YieldColumns> columns_;
+    bool isAll_{false};
+    bool isDistinct_{false};
+    std::unique_ptr<OrderFactors> orderFactors_;
+    std::unique_ptr<Expression> skip_;
+    std::unique_ptr<Expression> limit_;
 };
-
 
 class ReadingClause {
 public:
-    enum class Kind: uint8_t {
+    enum class Kind : uint8_t {
         kMatch,
         kUnwind,
         kWith,
@@ -472,14 +499,12 @@ public:
     virtual std::string toString() const = 0;
 
 private:
-    Kind            kind_;
+    Kind kind_;
 };
-
 
 class MatchClause final : public ReadingClause {
 public:
-    MatchClause(MatchPath *path, WhereClause *where, bool optional)
-        : ReadingClause(Kind::kMatch) {
+    MatchClause(MatchPath* path, WhereClause* where, bool optional) : ReadingClause(Kind::kMatch) {
         path_.reset(path);
         where_.reset(where);
         isOptional_ = optional;
@@ -508,16 +533,14 @@ public:
     std::string toString() const override;
 
 private:
-    bool                                isOptional_{false};
-    std::unique_ptr<MatchPath>          path_;
-    std::unique_ptr<WhereClause>        where_;
+    bool isOptional_{false};
+    std::unique_ptr<MatchPath> path_;
+    std::unique_ptr<WhereClause> where_;
 };
-
 
 class UnwindClause final : public ReadingClause {
 public:
-    UnwindClause(Expression *expr, std::string *alias)
-        : ReadingClause(Kind::kUnwind) {
+    UnwindClause(Expression* expr, std::string* alias) : ReadingClause(Kind::kUnwind) {
         expr_.reset(expr);
         alias_.reset(alias);
     }
@@ -541,19 +564,18 @@ public:
     std::string toString() const override;
 
 private:
-    std::unique_ptr<Expression>         expr_;
-    std::unique_ptr<std::string>        alias_;
+    std::unique_ptr<Expression> expr_;
+    std::unique_ptr<std::string> alias_;
 };
-
 
 class WithClause final : public ReadingClause {
 public:
-    explicit WithClause(YieldColumns *cols,
-                       OrderFactors *orderFactors = nullptr,
-                       Expression *skip = nullptr,
-                       Expression *limit = nullptr,
-                       WhereClause *where = nullptr,
-                       bool distinct = false)
+    explicit WithClause(YieldColumns* cols,
+                        OrderFactors* orderFactors = nullptr,
+                        Expression* skip = nullptr,
+                        Expression* limit = nullptr,
+                        WhereClause* where = nullptr,
+                        bool distinct = false)
         : ReadingClause(Kind::kWith) {
         columns_.reset(cols);
         orderFactors_.reset(orderFactors);
@@ -610,24 +632,23 @@ public:
     std::string toString() const override;
 
 private:
-    std::unique_ptr<YieldColumns>       columns_;
-    std::unique_ptr<OrderFactors>       orderFactors_;
-    std::unique_ptr<Expression>         skip_;
-    std::unique_ptr<Expression>         limit_;
-    std::unique_ptr<WhereClause>        where_;
-    bool                                isDistinct_;
+    std::unique_ptr<YieldColumns> columns_;
+    std::unique_ptr<OrderFactors> orderFactors_;
+    std::unique_ptr<Expression> skip_;
+    std::unique_ptr<Expression> limit_;
+    std::unique_ptr<WhereClause> where_;
+    bool isDistinct_;
 };
-
 
 class MatchClauseList final {
 public:
-    void add(ReadingClause *clause) {
+    void add(ReadingClause* clause) {
         clauses_.emplace_back(clause);
     }
 
-    void add(MatchClauseList *list) {
+    void add(MatchClauseList* list) {
         DCHECK(list != nullptr);
-        for (auto &clause : list->clauses_) {
+        for (auto& clause : list->clauses_) {
             clauses_.emplace_back(std::move(clause));
         }
         delete list;
@@ -638,14 +659,12 @@ public:
     }
 
 private:
-    std::vector<std::unique_ptr<ReadingClause>>     clauses_;
+    std::vector<std::unique_ptr<ReadingClause>> clauses_;
 };
-
 
 class MatchSentence final : public Sentence {
 public:
-    MatchSentence(MatchClauseList *clauses, MatchReturn *ret)
-        : Sentence(Kind::kMatch) {
+    MatchSentence(MatchClauseList* clauses, MatchReturn* ret) : Sentence(Kind::kMatch) {
         clauses_ = std::move(*clauses).clauses();
         delete clauses;
         return_.reset(ret);
@@ -670,10 +689,10 @@ public:
     std::string toString() const override;
 
 private:
-    std::vector<std::unique_ptr<ReadingClause>>     clauses_;
-    std::unique_ptr<MatchReturn>                    return_;
+    std::vector<std::unique_ptr<ReadingClause>> clauses_;
+    std::unique_ptr<MatchReturn> return_;
 };
 
 }   // namespace nebula
 
-#endif  // PARSER_MATCHSENTENCE_H_
+#endif   // PARSER_MATCHSENTENCE_H_
