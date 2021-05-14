@@ -71,7 +71,7 @@ public:
     explicit EdgePattern(std::string* alias,
                          std::vector<std::string> edgeTypes,
                          MapExpression* props,
-                         std::pair<int, int> range,
+                         std::pair<int64_t, int64_t> range,
                          EdgePattern::Direction direction = {EdgePattern::Direction::OUT_EDGE}) {
         alias_.reset(alias);
         edgeTypes_ = std::move(edgeTypes);
@@ -88,7 +88,7 @@ public:
         return edgeTypes_;
     }
 
-    std::pair<int, int> range() {
+    std::pair<int64_t, int64_t> range() {
         return range_;
     }
 
@@ -107,7 +107,7 @@ public:
 private:
     std::unique_ptr<std::string> alias_;
     std::vector<std::string> edgeTypes_{};
-    std::pair<int, int> range_{1, 1};
+    std::pair<int64_t, int64_t> range_{1, 1};
     std::unique_ptr<MapExpression> props_;
     EdgePattern::Direction direction_{EdgePattern::Direction::OUT_EDGE};
 };
@@ -157,7 +157,7 @@ public:
     }
 
     std::vector<std::string> items() {
-        return items;
+        return items_;
     }
 
     void addItem(std::string item) {

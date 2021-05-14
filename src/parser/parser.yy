@@ -1410,10 +1410,12 @@ path_pattern
         $1->setEdge($2);
         $1->setRightNode($3);
     }
-    | name_label ASSIGN path_pattern {
-        $$ = $3;
-        $3->setAlias($1);
-    }
+    // | name_label ASSIGN path_pattern edge_pattern node_pattern {
+    //     $$ = $3;
+    //     $3->setEdge($4);
+    //     $3->setRightNode($5);
+    //     $3->setAlias($1);
+    // }
     ;
 
 node_pattern
@@ -1474,47 +1476,52 @@ edge_pattern_directionless
         $$ = new EdgePattern($2, {}, nullptr, {1, 1});
     }
     | L_PAREN match_alias match_edge_type_list R_PAREN {
-        $$ = new EdgePattern($2, $3, nullptr, {1, 1});
+        $$ = new EdgePattern($2, *$3, nullptr, {1, 1});
+        delete($3);
     }
     | L_PAREN match_alias match_edge_type_list map_expression R_PAREN {
-        $$ = new EdgePattern($2, $3, $4, {1, 1});
+        $$ = new EdgePattern($2, *$3, $4, {1, 1});
+        delete($3);
+    }
+    | L_PAREN match_alias match_edge_type_list match_step_range R_PAREN {
+        $$ = new EdgePattern($2, *$3, nullptr, *$4);
+        delete($3);
+        delete($4);
     }
     | L_PAREN match_alias match_edge_type_list map_expression match_step_range R_PAREN {
-        $$ = new EdgePattern($2, $3, $4, $5);
+        $$ = new EdgePattern($2, *$3, $4, *$5);
+        delete($3);
+        delete($5);
     }
     ;
 
 match_step_range
-    : %empty {
-        $$ = std::pair(1, 1);
-    }
-    | STAR {
-        $$ = std::pair(1, std::numeric_limits<int64_t>::max());
+    : STAR {
+        $$ = new std::pair<int64_t, int64_t>(1, std::numeric_limits<int64_t>::max());
     }
     | STAR legal_integer {
-        $$ = std::pair($2, $2);
+        $$ = new std::pair<int64_t, int64_t>($2, $2);
     }
     | STAR DOT_DOT legal_integer {
-        $$ = std::pair(1, $3);
+        $$ = new std::pair<int64_t, int64_t>(1, $3);
     }
     | STAR legal_integer DOT_DOT {
-        $$ = std::pair($2, std::numeric_limits<int64_t>::max());
+        $$ = new std::pair<int64_t, int64_t>($2, std::numeric_limits<int64_t>::max());
     }
     | STAR legal_integer DOT_DOT legal_integer {
-        $$ = std::pair($2, $4);
+        $$ = new std::pair<int64_t, int64_t>($2, $4);
     }
     ;
 
 match_edge_type_list
-    : %empty {
-        $$ = LabelList({});
-    }
-    | COLON name_label {
-        $$ = LabelList({$2});
+    : COLON name_label {
+        $$ = new LabelList({*$2});
+        delete($2);
     }
     | match_edge_type_list PIPE name_label {
         $$ = $1;
-        $$.addItem($3);
+        $$->addItem(*$3);
+        delete($3);
     }
     ;
 
