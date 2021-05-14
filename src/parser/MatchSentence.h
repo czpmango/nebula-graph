@@ -15,6 +15,90 @@
 
 namespace nebula {
 
+// cypher multiple pattern support
+class PatternElement {
+public:
+    explicit PatternElement(std::string* alias, bool isSingleNode = false) {
+        alias_.reset(alias);
+        isSingleNode_ = isSingleNode;
+    }
+
+    std::string* alias() {
+        return alias_.get();
+    }
+
+    std::unordered_set<std::string> allAliases() {
+        return allAliases_;
+    }
+
+    bool isSingleNode() {
+        return isSingleNode_;
+    }
+
+private:
+    std::unique_ptr<std::string> alias_;
+    static std::unordered_set<std::string> allAliases_;
+    bool isSingleNode_{false};
+};
+class NodePattern final : public PatternElement {
+public:
+    explicit NodePattern(std::string* alias, std::vector<std::string> labels, MapExpression* props)
+        : PatternElement(alias, true) {
+        labels_ = std::move(labels);
+        props_.reset(props);
+    }
+    std::vector<std::string> labels() {
+        return labels_;
+    }
+    MapExpression* props() {
+        return props_.get();
+    }
+
+private:
+    std::vector<std::string> labels_{};
+    std::unique_ptr<MapExpression> props_;
+};
+class EdgePattern {
+    using Direction = nebula::storage::cpp2::EdgeDirection;
+
+public:
+    explicit EdgePattern(std::string* alias,
+                         std::vector<std::string> edgeTypes,
+                         MapExpression* props,
+                         std::pair<int, int> range,
+                         EdgePattern::Direction direction) {
+        alias_.reset(alias);
+        edgeTypes_ = std::move(edgeTypes);
+        props_.reset(props);
+        range_ = range;
+        direction_ = direction;
+    }
+
+private:
+    std::unique_ptr<std::string> alias_;
+    std::vector<std::string> edgeTypes_{};
+    std::pair<int, int> range_{1, 1};
+    std::unique_ptr<MapExpression> props_;
+    EdgePattern::Direction direction_{EdgePattern::Direction::OUT_EDGE};
+};
+class ChainPattern final : public PatternElement {
+public:
+    explicit ChainPattern(std::string* alias,
+                          PatternElement* element,
+                          EdgePattern* edge,
+                          NodePattern* rightNode)
+        : PatternElement(alias, false) {
+        element_.reset(element);
+        edge_.reset(edge);
+        rightNode_.reset(rightNode);
+    }
+
+private:
+    std::unique_ptr<PatternElement> element_;
+    std::unique_ptr<EdgePattern> edge_;
+    std::unique_ptr<NodePattern> rightNode_;
+};
+
 class MatchEdgeTypeList final {
 public:
     MatchEdgeTypeList() = default;
