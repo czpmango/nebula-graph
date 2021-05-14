@@ -47,9 +47,11 @@ public:
         labels_ = std::move(labels);
         props_.reset(props);
     }
+
     std::vector<std::string> labels() {
         return labels_;
     }
+
     MapExpression* props() {
         return props_.get();
     }
@@ -74,6 +76,26 @@ public:
         direction_ = direction;
     }
 
+    std::string* alias() {
+        return alias_.get();
+    }
+
+    std::vector<std::string> edgeTypes() {
+        return edgeTypes_;
+    }
+
+    std::pair<int, int> range() {
+        return range_;
+    }
+
+    MapExpression* props() {
+        return props_.get();
+    }
+
+    EdgePattern::Direction direction() {
+        return direction_;
+    }
+
 private:
     std::unique_ptr<std::string> alias_;
     std::vector<std::string> edgeTypes_{};
@@ -91,6 +113,18 @@ public:
         element_.reset(element);
         edge_.reset(edge);
         rightNode_.reset(rightNode);
+    }
+
+    PatternElement* element() {
+        return element_.get();
+    }
+
+    EdgePattern* edge() {
+        return edge_.get();
+    }
+
+    NodePattern* rightNode() {
+        return rightNode_.get();
     }
 
 private:
