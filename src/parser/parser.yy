@@ -131,8 +131,8 @@ static constexpr size_t kCommentLengthLimit = 256;
     EdgePattern                            *edge_pattern_directionless;
     LabelList                              *label_list;
     LabelList                              *match_edge_type_list;
-    MatchReturn                            *match_return;
-    ReadingClause                          *reading_clause;
+    ReturnClause                            *match_return;
+    CypherClause                          *reading_clause;
     MatchClauseList                        *match_clause_list;
     MatchStepRange                         *match_step_range;
     nebula::meta::cpp2::IndexFieldDef      *index_field;
@@ -1390,14 +1390,14 @@ reading_with_clauses
 
 match_sentence
     : reading_clauses match_return {
-        $$ = new MatchSentence($1, $2);
+        $$ = new CypherSentence($1, $2);
     }
     | reading_with_clauses match_return {
-        $$ = new MatchSentence($1, $2);
+        $$ = new CypherSentence($1, $2);
     }
     | reading_with_clauses reading_clauses match_return {
         $1->add($2);
-        $$ = new MatchSentence($1, $3);
+        $$ = new CypherSentence($1, $3);
     }
     ;
 
@@ -1527,16 +1527,16 @@ match_edge_type_list
 
 match_return
     : KW_RETURN yield_columns match_order_by match_skip match_limit {
-        $$ = new MatchReturn($2, $3, $4, $5);
+        $$ = new ReturnClause($2, $3, $4, $5);
     }
     | KW_RETURN KW_DISTINCT yield_columns match_order_by match_skip match_limit {
-        $$ = new MatchReturn($3, $4, $5, $6, true);
+        $$ = new ReturnClause($3, $4, $5, $6, true);
     }
     | KW_RETURN STAR match_order_by match_skip match_limit {
-        $$ = new MatchReturn(nullptr, $3, $4, $5);
+        $$ = new ReturnClause(nullptr, $3, $4, $5);
     }
     | KW_RETURN KW_DISTINCT STAR match_order_by match_skip match_limit {
-        $$ = new MatchReturn(nullptr, $4, $5, $6, true);
+        $$ = new ReturnClause(nullptr, $4, $5, $6, true);
     }
     ;
 

@@ -24,7 +24,7 @@ AstContext *MatchValidator::getAstContext() {
 }
 
 Status MatchValidator::validateImpl() {
-    auto *sentence = static_cast<MatchSentence *>(sentence_);
+    auto *sentence = static_cast<CypherSentence *>(sentence_);
     auto &clauses = sentence->clauses();
 
     std::unordered_map<std::string, AliasType> *aliasesUsed = nullptr;
@@ -35,12 +35,12 @@ Status MatchValidator::validateImpl() {
 
     for (size_t i = 0; i < clauses.size(); ++i) {
         auto kind = clauses[i]->kind();
-        if (i > 0 && kind == ReadingClause::Kind::kMatch) {
+        if (i > 0 && kind == CypherClause::Kind::kMatch) {
             return Status::SemanticError(
                 "Match clause is not supported to be followed by other cypher clauses");
         }
         switch (kind) {
-            case ReadingClause::Kind::kMatch: {
+            case CypherClause::Kind::kMatch: {
                 auto *matchClause = static_cast<MatchClause *>(clauses[i].get());
 
                 if (matchClause->isOptional()) {
@@ -73,7 +73,7 @@ Status MatchValidator::validateImpl() {
 
                 break;
             }
-            case ReadingClause::Kind::kUnwind: {
+            case CypherClause::Kind::kUnwind: {
                 auto *unwindClause = static_cast<UnwindClause *>(clauses[i].get());
                 auto unwindClauseCtx = getContext<UnwindClauseContext>();
                 unwindClauseCtx->aliasesUsed = aliasesUsed;
@@ -91,7 +91,7 @@ Status MatchValidator::validateImpl() {
                 UNUSED(prevYieldColumns);
                 break;
             }
-            case ReadingClause::Kind::kWith: {
+            case CypherClause::Kind::kWith: {
                 auto *withClause = static_cast<WithClause *>(clauses[i].get());
                 auto withClauseCtx = getContext<WithClauseContext>();
                 auto withYieldCtx = getContext<YieldClauseContext>();
@@ -126,7 +126,7 @@ Status MatchValidator::validateImpl() {
     return Status::OK();
 }
 
-Status MatchValidator::validatePath(const MatchPath *path,
+Status MatchValidator::validatePath(const PathPattern *path,
                                     MatchClauseContext &matchClauseCtx) const {
     NG_RETURN_IF_ERROR(
         buildNodeInfo(path, matchClauseCtx.nodeInfos, matchClauseCtx.aliasesGenerated));
@@ -136,7 +136,7 @@ Status MatchValidator::validatePath(const MatchPath *path,
     return Status::OK();
 }
 
-Status MatchValidator::buildPathExpr(const MatchPath *path,
+Status MatchValidator::buildPathExpr(const PathPattern *path,
                                      MatchClauseContext &matchClauseCtx) const {
     auto *pathAlias = path->alias();
     if (pathAlias == nullptr) {
@@ -162,7 +162,7 @@ Status MatchValidator::buildPathExpr(const MatchPath *path,
     return Status::OK();
 }
 
-Status MatchValidator::buildNodeInfo(const MatchPath *path,
+Status MatchValidator::buildNodeInfo(const PathPattern *path,
                                      std::vector<NodeInfo> &nodeInfos,
                                      std::unordered_map<std::string, AliasType> &aliases) const {
     auto *sm = qctx_->schemaMng();
@@ -218,7 +218,7 @@ Status MatchValidator::buildNodeInfo(const MatchPath *path,
     return Status::OK();
 }
 
-Status MatchValidator::buildEdgeInfo(const MatchPath *path,
+Status MatchValidator::buildEdgeInfo(const PathPattern *path,
                                      std::vector<EdgeInfo> &edgeInfos,
                                      std::unordered_map<std::string, AliasType> &aliases) const {
     auto *sm = qctx_->schemaMng();
@@ -301,7 +301,7 @@ Status MatchValidator::validateFilter(const Expression *filter,
     return Status::OK();
 }
 
-Status MatchValidator::validateReturn(MatchReturn *ret,
+Status MatchValidator::validateReturn(ReturnClause *ret,
                                       const CypherClauseContextBase *cypherClauseCtx,
                                       ReturnClauseContext &retClauseCtx) const {
     auto kind = cypherClauseCtx->kind;

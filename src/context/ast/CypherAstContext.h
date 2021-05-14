@@ -12,7 +12,7 @@
 #include "common/expression/Expression.h"
 #include "common/expression/PathBuildExpression.h"
 #include "context/ast/AstContext.h"
-#include "parser/MatchSentence.h"
+#include "parser/CypherSentence.h"
 
 namespace nebula {
 namespace graph {
@@ -32,7 +32,7 @@ enum class PatternKind : uint8_t {
     kEdge,
 };
 
-using Direction = MatchEdge::Direction;
+using Direction = EdgePattern::Direction;
 struct NodeInfo {
     bool                                    anonymous{false};
     std::vector<TagID>                      tids;
@@ -47,7 +47,7 @@ struct EdgeInfo {
     bool                                    anonymous{false};
     MatchStepRange                         *range{nullptr};
     std::vector<EdgeType>                   edgeTypes;
-    MatchEdge::Direction                    direction{MatchEdge::Direction::OUT_EDGE};
+    EdgePattern::Direction                    direction{EdgePattern::Direction::OUT_EDGE};
     std::vector<const std::string*>         types;
     const std::string                      *alias{nullptr};
     const MapExpression                    *props{nullptr};
@@ -65,7 +65,7 @@ struct ScanInfo {
     // use for seek by index itself
     std::vector<IndexID>                    indexIds;
     // use for seek by edge only
-    MatchEdge::Direction                    direction{MatchEdge::Direction::OUT_EDGE};
+    EdgePattern::Direction                    direction{EdgePattern::Direction::OUT_EDGE};
 };
 
 struct CypherClauseContextBase : AstContext {

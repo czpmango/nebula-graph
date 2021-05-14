@@ -150,15 +150,15 @@ StatusOr<SubPlan> LabelIndexSeek::transformEdge(EdgeContext* edgeCtx) {
     auto columns = std::make_unique<std::vector<std::string>>();
     std::vector<std::string> columnsName;
     switch (edgeCtx->scanInfo.direction) {
-        case MatchEdge::Direction::OUT_EDGE:
+        case EdgePattern::Direction::OUT_EDGE:
             columns->emplace_back(kSrc);
             columnsName.emplace_back(kVid);
             break;
-        case MatchEdge::Direction::IN_EDGE:
+        case EdgePattern::Direction::IN_EDGE:
             columns->emplace_back(kDst);
             columnsName.emplace_back(kVid);
             break;
-        case MatchEdge::Direction::BOTH:
+        case EdgePattern::Direction::BOTH:
             columns->emplace_back(kSrc);
             columns->emplace_back(kDst);
             columnsName.emplace_back(kSrc);
@@ -176,7 +176,7 @@ StatusOr<SubPlan> LabelIndexSeek::transformEdge(EdgeContext* edgeCtx) {
     plan.tail = scan;
     plan.root = scan;
 
-    if (edgeCtx->scanInfo.direction == MatchEdge::Direction::BOTH) {
+    if (edgeCtx->scanInfo.direction == EdgePattern::Direction::BOTH) {
         // merge the src,dst to one column
         auto *yieldColumns = matchClauseCtx->qctx->objPool()->makeAndAdd<YieldColumns>();
         auto *exprList = new ExpressionList();
