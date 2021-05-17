@@ -131,10 +131,10 @@ static constexpr size_t kCommentLengthLimit = 256;
     EdgePattern                            *edge_pattern_directionless;
     LabelList                              *label_list;
     LabelList                              *match_edge_type_list;
-    ReturnClause                            *match_return;
-    CypherClause                          *reading_clause;
+    ReturnClause                           *match_return;
+    CypherClause                           *cypher_clause;
     MatchClauseList                        *match_clause_list;
-    MatchStepRange                         *match_step_range;
+    std::pair<int64_t, int64_t>            *match_step_range;
     nebula::meta::cpp2::IndexFieldDef      *index_field;
     nebula::IndexFieldList                 *index_field_list;
     CaseList                               *case_list;
@@ -295,7 +295,7 @@ static constexpr size_t kCommentLengthLimit = 256;
 %type <strval> match_alias
 %type <match_edge_type_list> match_edge_type_list
 %type <label_list> label_list
-%type <reading_clause> unwind_clause with_clause match_clause reading_clause
+%type <cypher_clause> unwind_clause with_clause match_clause cypher_clause
 %type <match_clause_list> reading_clauses reading_with_clause reading_with_clauses
 %type <match_step_range> match_step_range
 %type <order_factors> match_order_by
@@ -1347,7 +1347,7 @@ match_clause
     }
     ;
 
-reading_clause
+cypher_clause
     : unwind_clause {
         $$ = $1;
     }
@@ -1357,11 +1357,11 @@ reading_clause
     ;
 
 reading_clauses
-    : reading_clause {
+    : cypher_clause {
         $$ = new MatchClauseList();
         $$->add($1);
     }
-    | reading_clauses reading_clause {
+    | reading_clauses cypher_clause {
         $$ = $1;
         $$->add($2);
     }
@@ -1410,6 +1410,7 @@ path_pattern
         $1->setEdge($2);
         $1->setRightNode($3);
     }
+    // TODO: support assign path
     // | name_label ASSIGN path_pattern edge_pattern node_pattern {
     //     $$ = $3;
     //     $3->setEdge($4);
@@ -1420,26 +1421,34 @@ path_pattern
 
 node_pattern
     : L_PAREN match_alias R_PAREN {
-        $$ = new NodePattern($2, {}, nullptr);
+        $$ = new NodePattern(*$2, {}, nullptr);
+        delete($2);
     }
     | L_PAREN match_alias label_list R_PAREN {
-        $$ = new NodePattern($2, $3, nullptr);
+        $$ = new NodePattern(*$2, $3->items(), nullptr);
+        delete($2);
+        delete($3);
     }
     | L_PAREN match_alias map_expression R_PAREN {
-        $$ = new NodePattern($2, {}, $3);
+        $$ = new NodePattern(*$2, {}, $3);
+        delete($2);
     }
     | L_PAREN match_alias label_list map_expression R_PAREN {
-        $$ = new NodePattern($2, $3, $4);
+        $$ = new NodePattern(*$2, $3->items(), $4);
+        delete($2);
+        delete($3);
     }
     ;
 
 label_list
     : COLON name_label {
-        $$ = LabelList({$2});
+        $$ = new LabelList({*$2});
+        delete($2);
     }
     | label_list COLON name_label {
         $$ = $1;
-        $1.addItem($3);
+        $1->addItem(*$3);
+        delete($3);
     }
     ;
 
@@ -1473,23 +1482,28 @@ edge_pattern
 
 edge_pattern_directionless
     : L_PAREN match_alias R_PAREN {
-        $$ = new EdgePattern($2, {}, nullptr, {1, 1});
+        $$ = new EdgePattern(*$2, {}, nullptr, {1, 1});
+        delete($2);
     }
     | L_PAREN match_alias match_edge_type_list R_PAREN {
-        $$ = new EdgePattern($2, *$3, nullptr, {1, 1});
+        $$ = new EdgePattern(*$2, $3->items(), nullptr, {1, 1});
+        delete($2);
         delete($3);
     }
     | L_PAREN match_alias match_edge_type_list map_expression R_PAREN {
-        $$ = new EdgePattern($2, *$3, $4, {1, 1});
+        $$ = new EdgePattern(*$2, $3->items(), $4, {1, 1});
+        delete($2);
         delete($3);
     }
     | L_PAREN match_alias match_edge_type_list match_step_range R_PAREN {
-        $$ = new EdgePattern($2, *$3, nullptr, *$4);
+        $$ = new EdgePattern(*$2, $3->items(), nullptr, *$4);
+        delete($2);
         delete($3);
         delete($4);
     }
     | L_PAREN match_alias match_edge_type_list map_expression match_step_range R_PAREN {
-        $$ = new EdgePattern($2, *$3, $4, *$5);
+        $$ = new EdgePattern(*$2, $3->items(), $4, *$5);
+        delete($2);
         delete($3);
         delete($5);
     }

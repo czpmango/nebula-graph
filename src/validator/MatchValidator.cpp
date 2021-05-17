@@ -138,8 +138,8 @@ Status MatchValidator::validatePath(const PathPattern *path,
 
 Status MatchValidator::buildPathExpr(const PathPattern *path,
                                      MatchClauseContext &matchClauseCtx) const {
-    auto *pathAlias = path->alias();
-    if (pathAlias == nullptr) {
+    auto pathAlias = path->alias();
+    if (pathAlias.empty()) {
         return Status::OK();
     }
     if (!matchClauseCtx.aliasesGenerated.emplace(*pathAlias, AliasType::kPath).second) {
@@ -416,9 +416,9 @@ Status MatchValidator::validateAliases(
     return Status::OK();
 }
 
-Status MatchValidator::validateStepRange(const MatchStepRange *range) const {
-    auto min = range->min();
-    auto max = range->max();
+Status MatchValidator::validateStepRange(const std::pair<int64_t, int64_t> range) const {
+    auto min = range.first;
+    auto max = range.second;
     if (min > max) {
         return Status::SemanticError(
             "Max hop must be greater equal than min hop: %ld vs. %ld", max, min);

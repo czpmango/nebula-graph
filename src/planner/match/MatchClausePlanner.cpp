@@ -332,14 +332,16 @@ YieldColumn* MatchClausePlanner::buildEdgeColumn(const std::string& colName, Edg
     auto fn = std::make_unique<std::string>("relationships");
     auto relExpr = std::make_unique<FunctionCallExpression>(fn.release(), args.release());
     Expression* expr = nullptr;
-    if (edge.range != nullptr) {
-        expr = relExpr.release();
-    } else {
+
+    // TODO: fix this
+    // if (edge.range_ != nullptr) {
+    //     expr = relExpr.release();
+    // } else {
         // Get first edge in path list [e1, e2, ...]
         auto idxExpr = std::make_unique<ConstantExpression>(0);
         auto subExpr = std::make_unique<SubscriptExpression>(relExpr.release(), idxExpr.release());
         expr = subExpr.release();
-    }
+    // }
     return new YieldColumn(expr, new std::string(*edge.alias));
 }
 
