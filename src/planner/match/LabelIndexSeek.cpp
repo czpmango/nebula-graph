@@ -43,7 +43,7 @@ bool LabelIndexSeek::matchEdge(EdgeContext* edgeCtx) {
         return false;
     }
 
-    if (edge.range_.first == 0) {
+    if (edge.range.first == 0) {
         // The 0 step is NodeScan in fact.
         return false;
     }

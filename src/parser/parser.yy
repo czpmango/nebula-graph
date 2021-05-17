@@ -1466,6 +1466,10 @@ edge_pattern
         $$ = $2;
         $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
+    // | MINUS MINUS {
+    //     $$ = new EdgePattern("", {}, nullptr, {1, 1});
+    //     $$->setDirection(storage::cpp2::EdgeDirection::BOTH);
+    // }
     | L_ARROW edge_pattern_directionless R_ARROW {
         $$ = $2;
         $2->setDirection(storage::cpp2::EdgeDirection::BOTH);

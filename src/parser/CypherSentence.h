@@ -22,6 +22,17 @@ public:
         isSingleNode_ = isSingleNode;
     }
 
+    PatternElement(PatternElement& elem) {
+        alias_ = elem.alias();
+        isSingleNode_ = elem.isSingleNode();
+    }
+
+    PatternElement& operator=(PatternElement& e) {
+        alias_ = e.alias();
+        isSingleNode_ = e.isSingleNode();
+        return *this;
+    }
+
     std::string alias() {
         return alias_;
     }
@@ -51,11 +62,26 @@ protected:
 
 class NodePattern final : public PatternElement {
 public:
-    explicit NodePattern(std::string alias, std::vector<std::string> labels, Expression* props)
+    NodePattern(std::string alias, std::vector<std::string> labels, Expression* props)
         : PatternElement(alias, true) {
         labels_ = std::move(labels);
         DCHECK_EQ(props->kind(), Expression::Kind::kMap);
         props_.reset(static_cast<MapExpression*>(props));
+    }
+
+    NodePattern(NodePattern& nodePattern) {
+        alias_ = nodePattern.alias();
+        isSingleNode_ = nodePattern.isSingleNode();
+        labels_ = nodePattern.labels();
+        props_.reset(nodePattern.props()->clone().release());
+    }
+
+    NodePattern& operator=(NodePattern& n) {
+        alias_ = nodePattern.alias();
+        isSingleNode_ = nodePattern.isSingleNode();
+        labels_ = nodePattern.labels();
+        props_.reset(nodePattern.props()->clone().release());
+        return *this;
     }
 
     std::vector<std::string> labels() {
@@ -76,17 +102,34 @@ private:
 class EdgePattern {
 public:
     using Direction = nebula::storage::cpp2::EdgeDirection;
-    explicit EdgePattern(std::string alias,
-                         std::vector<std::string> edgeTypes,
-                         Expression* props,
-                         std::pair<int64_t, int64_t> range,
-                         EdgePattern::Direction direction = {EdgePattern::Direction::OUT_EDGE}) {
+    EdgePattern(std::string alias,
+                std::vector<std::string> edgeTypes,
+                Expression* props,
+                std::pair<int64_t, int64_t> range,
+                EdgePattern::Direction direction = {EdgePattern::Direction::OUT_EDGE}) {
         alias_ = alias;
         edgeTypes_ = std::move(edgeTypes);
         DCHECK_EQ(props->kind(), Expression::Kind::kMap);
         props_.reset(static_cast<MapExpression*>(props));
         range_ = range;
         direction_ = direction;
+    }
+
+    EdgePattern(EdgePattern& edgePattern) {
+        alias_ = edgePattern.alias();
+        edgeTypes_ = edgePattern.edgeTypes();
+        range_ = edgePattern.range();
+        props_.reset(edgePattern.props());
+        direction_ = edgePattern.direction();
+    }
+
+    EdgePattern& operator=(EdgePattern& e) {
+        alias_ = edgePattern.alias();
+        edgeTypes_ = edgePattern.edgeTypes();
+        range_ = edgePattern.range();
+        props_.reset(edgePattern.props());
+        direction_ = edgePattern.direction();
+        return *this;
     }
 
     std::string alias() {
@@ -125,14 +168,27 @@ private:
 
 class PathPattern final : public PatternElement {
 public:
-    explicit PathPattern(PatternElement* element,
-                         EdgePattern* edge = nullptr,
-                         NodePattern* rightNode = nullptr,
-                         std::string alias = "")
+    PathPattern(PatternElement* element,
+                EdgePattern* edge = nullptr,
+                NodePattern* rightNode = nullptr,
+                std::string alias = "")
         : PatternElement(alias, false) {
         element_.reset(element);
         edge_.reset(edge);
         rightNode_.reset(rightNode);
+    }
+
+    PathPattern(PathPattern& pathPattern) {
+        element_.reset(pathPattern.element()->clone().release());
+        edge_.reset(pathPattern.edge()->clone().release());
+        rightNode_.reset(pathPattern.rightNode()->clone().release());
+    }
+
+    PathPattern& operator=(PathPattern& p) {
+        element_.reset(pathPattern.element()->clone().release());
+        edge_.reset(pathPattern.edge()->clone().release());
+        rightNode_.reset(pathPattern.rightNode()->clone().release());
+        return *this;
     }
 
     PatternElement* element() {
@@ -199,7 +255,6 @@ private:
 };
 
 class CypherClause {
-    // TODO: what should CypherClause carry?
 public:
     enum class Kind : uint8_t {
         kMatch,
@@ -485,6 +540,70 @@ public:
 private:
     std::vector<std::unique_ptr<CypherClause>> clauses_;
     std::unique_ptr<ReturnClause> return_;
+};
+
+class MatchPath final {
+    // TODO: delete this class and use PathPattern after refactor cypher validator
+public:
+    explicit MatchPath(PathPattern& pattern) {
+        alias_ = pattern.alias();
+        pattern_ = pattern;
+    }
+
+    // decompose pattern into nodes_/edges_
+    void decomposePattern(PatternElement* elem, EdgePattern* edge, NodePattern* rightNode) {
+        if (edge) {
+            edges_.emplace_back(*edge);
+        }
+        if (rightNode) {
+            nodes_.emplace_back(*rightNode);
+        }
+        if (elem) {
+            if (!elem->isSingleNode()) {
+                auto* pathPattern = static_cast<PathPattern*>(elem);
+                decomposePattern(
+                    pathPattern->element(), pathPattern->edge(), pathPattern->rightNode());
+            } else {
+                nodes_.emplace_back(*static_cast<NodePattern*>(elem));
+            }
+        }
+    }
+
+    void setAlias(std::string alias) {
+        alias_ = alias;
+    }
+
+    const std::string alias() const {
+        return alias_;
+    }
+
+    const auto& nodes() const {
+        return nodes_;
+    }
+
+    const auto& edges() const {
+        return edges_;
+    }
+
+    size_t steps() const {
+        return edges_.size();
+    }
+
+    const NodePattern& node(size_t i) const {
+        return nodes_[i];
+    }
+
+    const EdgePattern& edge(size_t i) const {
+        return edges_[i];
+    }
+
+    std::string toString() const;
+
+private:
+    PathPattern pattern_;
+    std::string alias_;
+    std::vector<NodePattern> nodes_;
+    std::vector<EdgePattern> edges_;
 };
 
 }   // namespace nebula

@@ -135,8 +135,8 @@ std::string EdgePattern::toString() const {
         buf += '-';
         end = "->";
     } else if (direction_ == Direction::IN_EDGE) {
-        buf += "-";
-        end = "<-";
+        buf += "<-";
+        end = "-";
     } else {
         buf += '-';
         end = "-";
@@ -213,4 +213,21 @@ std::string PathPattern::toString() const {
     return buf;
 }
 
+std::string MatchPath::toString() const {
+    std::string buf;
+    buf.reserve(256);
+
+    if (!alias_.empty()) {
+        buf += alias_;
+        buf += " = ";
+    }
+
+    buf += node(0)->toString();
+    for (auto i = 0u; i < edges_.size(); i++) {
+        buf += edge(i)->toString();
+        buf += node(i + 1)->toString();
+    }
+
+    return buf;
+}
 }   // namespace nebula
