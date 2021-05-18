@@ -17,23 +17,12 @@ namespace nebula {
 
 class PatternElement {
 public:
-    explicit PatternElement(std::string alias, bool isSingleNode = false) {
+    explicit PatternElement(std::string alias = "", bool isSingleNode = false) {
         alias_ = alias;
         isSingleNode_ = isSingleNode;
     }
 
-    PatternElement(PatternElement& elem) {
-        alias_ = elem.alias();
-        isSingleNode_ = elem.isSingleNode();
-    }
-
-    PatternElement& operator=(PatternElement& e) {
-        alias_ = e.alias();
-        isSingleNode_ = e.isSingleNode();
-        return *this;
-    }
-
-    std::string alias() {
+    std::string alias() const {
         return alias_;
     }
 
@@ -41,18 +30,29 @@ public:
         alias_ = alias;
     }
 
-    std::unordered_set<std::string> allAliases() {
+    std::unordered_set<std::string> allAliases() const {
         return allAliases_;
     }
 
-    bool isSingleNode() {
+    bool isSingleNode() const {
         return isSingleNode_;
     }
+
+    virtual std::unique_ptr<PatternElement> clone() const = 0;
 
     virtual std::string toString() const {
         return "";
     }
     virtual ~PatternElement() = default;
+
+protected:
+    PatternElement(const PatternElement& elem) {
+        alias_ = elem.alias();
+        allAliases_ = elem.allAliases();
+        isSingleNode_ = elem.isSingleNode();
+    }
+
+    PatternElement& operator=(PatternElement& e) = delete;
 
 protected:
     std::string alias_;
@@ -69,27 +69,31 @@ public:
         props_.reset(static_cast<MapExpression*>(props));
     }
 
-    NodePattern(NodePattern& nodePattern) {
-        alias_ = nodePattern.alias();
-        isSingleNode_ = nodePattern.isSingleNode();
+    NodePattern(const NodePattern& nodePattern) : PatternElement(nodePattern) {
+        // alias_ = nodePattern.alias();
+        // isSingleNode_ = nodePattern.isSingleNode();
         labels_ = nodePattern.labels();
-        props_.reset(nodePattern.props()->clone().release());
+        props_.reset(static_cast<MapExpression*>(nodePattern.props()->clone().release()));
     }
 
-    NodePattern& operator=(NodePattern& n) {
+    NodePattern& operator=(const NodePattern& nodePattern) {
         alias_ = nodePattern.alias();
         isSingleNode_ = nodePattern.isSingleNode();
         labels_ = nodePattern.labels();
-        props_.reset(nodePattern.props()->clone().release());
+        props_.reset(static_cast<MapExpression*>(nodePattern.props()->clone().release()));
         return *this;
     }
 
-    std::vector<std::string> labels() {
+    std::vector<std::string> labels() const {
         return labels_;
     }
 
-    MapExpression* props() {
+    MapExpression* props() const {
         return props_.get();
+    }
+
+    std::unique_ptr<PatternElement> clone() const override {
+        return std::make_unique<NodePattern>(alias_, labels_, props_->clone().release());
     }
 
     std::string toString() const override;
@@ -115,45 +119,50 @@ public:
         direction_ = direction;
     }
 
-    EdgePattern(EdgePattern& edgePattern) {
+    EdgePattern(const EdgePattern& edgePattern) {
         alias_ = edgePattern.alias();
         edgeTypes_ = edgePattern.edgeTypes();
         range_ = edgePattern.range();
-        props_.reset(edgePattern.props());
+        props_.reset(static_cast<MapExpression*>(edgePattern.props()));
         direction_ = edgePattern.direction();
     }
 
-    EdgePattern& operator=(EdgePattern& e) {
+    EdgePattern& operator=(const EdgePattern& edgePattern) {
         alias_ = edgePattern.alias();
         edgeTypes_ = edgePattern.edgeTypes();
         range_ = edgePattern.range();
-        props_.reset(edgePattern.props());
+        props_.reset(static_cast<MapExpression*>(edgePattern.props()));
         direction_ = edgePattern.direction();
         return *this;
     }
 
-    std::string alias() {
+    std::string alias() const {
         return alias_;
     }
 
-    std::vector<std::string> edgeTypes() {
+    std::vector<std::string> edgeTypes() const {
         return edgeTypes_;
     }
 
-    std::pair<int64_t, int64_t> range() {
+    std::pair<int64_t, int64_t> range() const {
         return range_;
     }
 
-    MapExpression* props() {
+    MapExpression* props() const {
         return props_.get();
     }
 
-    EdgePattern::Direction direction() {
+    EdgePattern::Direction direction() const {
         return direction_;
     }
 
     void setDirection(EdgePattern::Direction direction) {
         direction_ = direction;
+    }
+
+    std::unique_ptr<EdgePattern> clone() const {
+        return std::make_unique<EdgePattern>(
+            alias_, edgeTypes_, props_->clone().release(), range_, direction_);
     }
 
     std::string toString() const;
@@ -178,24 +187,24 @@ public:
         rightNode_.reset(rightNode);
     }
 
-    PathPattern(PathPattern& pathPattern) {
-        element_.reset(pathPattern.element()->clone().release());
-        edge_.reset(pathPattern.edge()->clone().release());
-        rightNode_.reset(pathPattern.rightNode()->clone().release());
+    PathPattern(const PathPattern& pathPattern) : PatternElement(pathPattern) {
+        element_.reset(static_cast<PatternElement*>(pathPattern.element()->clone().release()));
+        edge_.reset(static_cast<EdgePattern*>(pathPattern.edge()->clone().release()));
+        rightNode_.reset(static_cast<NodePattern*>(pathPattern.rightNode()->clone().release()));
     }
 
-    PathPattern& operator=(PathPattern& p) {
-        element_.reset(pathPattern.element()->clone().release());
-        edge_.reset(pathPattern.edge()->clone().release());
-        rightNode_.reset(pathPattern.rightNode()->clone().release());
+    PathPattern& operator=(const PathPattern& pathPattern) {
+        element_.reset(static_cast<PatternElement*>(pathPattern.element()->clone().release()));
+        edge_.reset(static_cast<EdgePattern*>(pathPattern.edge()->clone().release()));
+        rightNode_.reset(static_cast<NodePattern*>(pathPattern.rightNode()->clone().release()));
         return *this;
     }
 
-    PatternElement* element() {
+    PatternElement* element() const {
         return element_.get();
     }
 
-    EdgePattern* edge() {
+    EdgePattern* edge() const {
         return edge_.get();
     }
 
@@ -203,12 +212,20 @@ public:
         edge_.reset(edge);
     }
 
-    NodePattern* rightNode() {
+    NodePattern* rightNode() const {
         return rightNode_.get();
     }
 
     void setRightNode(NodePattern* rightNode) {
         rightNode_.reset(rightNode);
+    }
+
+    std::unique_ptr<PatternElement> clone() const override {
+        return std::make_unique<PathPattern>(
+            element_->clone().release(),
+            static_cast<EdgePattern*>(edge_->clone().release()),
+            static_cast<NodePattern*>(rightNode_->clone().release()),
+            alias_);
     }
 
     std::string toString() const override;
@@ -224,7 +241,7 @@ public:
     explicit Pattern(std::vector<PatternElement> patternElements = {})
         : patternElements_(std::move(patternElements)) {}
 
-    std::vector<PatternElement> patternElements() {
+    std::vector<PatternElement>& patternElements() {
         return patternElements_;
     }
 
@@ -545,10 +562,7 @@ private:
 class MatchPath final {
     // TODO: delete this class and use PathPattern after refactor cypher validator
 public:
-    explicit MatchPath(PathPattern& pattern) {
-        alias_ = pattern.alias();
-        pattern_ = pattern;
-    }
+    explicit MatchPath(const PathPattern& pattern) : alias_(pattern.alias()), pattern_(pattern) {}
 
     // decompose pattern into nodes_/edges_
     void decomposePattern(PatternElement* elem, EdgePattern* edge, NodePattern* rightNode) {
@@ -600,8 +614,8 @@ public:
     std::string toString() const;
 
 private:
-    PathPattern pattern_;
     std::string alias_;
+    PathPattern pattern_;
     std::vector<NodePattern> nodes_;
     std::vector<EdgePattern> edges_;
 };

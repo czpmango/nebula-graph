@@ -222,10 +222,10 @@ std::string MatchPath::toString() const {
         buf += " = ";
     }
 
-    buf += node(0)->toString();
+    buf += node(0).toString();
     for (auto i = 0u; i < edges_.size(); i++) {
-        buf += edge(i)->toString();
-        buf += node(i + 1)->toString();
+        buf += edge(i).toString();
+        buf += node(i + 1).toString();
     }
 
     return buf;
