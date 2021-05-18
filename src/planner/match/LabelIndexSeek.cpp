@@ -90,7 +90,7 @@ StatusOr<SubPlan> LabelIndexSeek::transformNode(NodeContext* nodeCtx) {
     auto& whereCtx = matchClauseCtx->where;
     if (whereCtx && whereCtx->filter) {
         auto* filter = whereCtx->filter;
-        const auto nodeAlias = *nodeCtx->info->alias;
+        const auto nodeAlias = nodeCtx->info->alias;
         auto* objPool = matchClauseCtx->qctx->objPool();
         if (filter->kind() == Expression::Kind::kLogicalOr) {
             auto labelExprs = ExpressionUtils::collectAll(filter, {Expression::Kind::kLabel});
@@ -220,7 +220,7 @@ StatusOr<SubPlan> LabelIndexSeek::transformEdge(EdgeContext* edgeCtx) {
         }
         if (candidateIndex == nullptr) {
             return Status::SemanticError("No valid index for label `%s'.",
-                                        nodeCtx->scanInfo.schemaNames[i]->c_str());
+                                        nodeCtx->scanInfo.schemaNames[i].c_str());
         }
         indexIds.emplace_back(candidateIndex->get_index_id());
     }
@@ -249,7 +249,7 @@ LabelIndexSeek::pickEdgeIndex(const EdgeContext* edgeCtx) {
         }
         if (candidateIndex == nullptr) {
             return Status::SemanticError("No valid index for label `%s'.",
-                                         edgeCtx->scanInfo.schemaNames[i]->c_str());
+                                         edgeCtx->scanInfo.schemaNames[i].c_str());
         }
         indexIds.emplace_back(candidateIndex->get_index_id());
     }

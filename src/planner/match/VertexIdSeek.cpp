@@ -31,7 +31,7 @@ bool VertexIdSeek::matchNode(NodeContext *nodeCtx) {
         return false;
     }
 
-    if (node.alias == nullptr || node.anonymous) {
+    if (node.anonymous) {
         // require one named node
         return false;
     }
@@ -44,7 +44,7 @@ bool VertexIdSeek::matchNode(NodeContext *nodeCtx) {
     }
     for (auto &nodeVid : vidResult.nodes) {
         if (nodeVid.second.kind == VidExtractVisitor::VidPattern::Vids::Kind::kIn) {
-            if (nodeVid.first == *node.alias) {
+            if (nodeVid.first == node.alias) {
                 nodeCtx->ids = std::move(nodeVid.second.vids);
                 return true;
             }

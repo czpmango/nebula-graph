@@ -49,7 +49,8 @@ Status MatchValidator::validateImpl() {
 
                 auto matchClauseCtx = getContext<MatchClauseContext>();
                 matchClauseCtx->aliasesUsed = aliasesUsed;
-                NG_RETURN_IF_ERROR(validatePath(matchClause->path(), *matchClauseCtx));
+                MatchPath matchPath(*matchClause->path());
+                NG_RETURN_IF_ERROR(validatePath(&matchPath, *matchClauseCtx));
                 if (matchClause->where() != nullptr) {
                     auto whereClauseCtx = getContext<WhereClauseContext>();
                     whereClauseCtx->aliasesUsed = &matchClauseCtx->aliasesGenerated;
@@ -126,7 +127,7 @@ Status MatchValidator::validateImpl() {
     return Status::OK();
 }
 
-Status MatchValidator::validatePath(const PathPattern *path,
+Status MatchValidator::validatePath(const MatchPath *path,
                                     MatchClauseContext &matchClauseCtx) const {
     NG_RETURN_IF_ERROR(
         buildNodeInfo(path, matchClauseCtx.nodeInfos, matchClauseCtx.aliasesGenerated));
@@ -136,14 +137,14 @@ Status MatchValidator::validatePath(const PathPattern *path,
     return Status::OK();
 }
 
-Status MatchValidator::buildPathExpr(const PathPattern *path,
+Status MatchValidator::buildPathExpr(const MatchPath *path,
                                      MatchClauseContext &matchClauseCtx) const {
     auto pathAlias = path->alias();
     if (pathAlias.empty()) {
         return Status::OK();
     }
-    if (!matchClauseCtx.aliasesGenerated.emplace(*pathAlias, AliasType::kPath).second) {
-        return Status::SemanticError("`%s': Redefined alias", pathAlias->c_str());
+    if (!matchClauseCtx.aliasesGenerated.emplace(pathAlias, AliasType::kPath).second) {
+        return Status::SemanticError("`%s': Redefined alias", pathAlias.c_str());
     }
 
     auto &nodeInfos = matchClauseCtx.nodeInfos;
@@ -152,17 +153,17 @@ Status MatchValidator::buildPathExpr(const PathPattern *path,
     auto pathBuild = std::make_unique<PathBuildExpression>();
     for (size_t i = 0; i < edgeInfos.size(); ++i) {
         pathBuild->add(std::make_unique<VariablePropertyExpression>(
-            new std::string(), new std::string(*nodeInfos[i].alias)));
+            new std::string(), new std::string(nodeInfos[i].alias)));
         pathBuild->add(std::make_unique<VariablePropertyExpression>(
-            new std::string(), new std::string(*edgeInfos[i].alias)));
+            new std::string(), new std::string(edgeInfos[i].alias)));
     }
     pathBuild->add(std::make_unique<VariablePropertyExpression>(
-        new std::string(), new std::string(*nodeInfos.back().alias)));
+        new std::string(), new std::string(nodeInfos.back().alias)));
     matchClauseCtx.pathBuild = std::move(pathBuild);
     return Status::OK();
 }
 
-Status MatchValidator::buildNodeInfo(const PathPattern *path,
+Status MatchValidator::buildNodeInfo(const MatchPath *path,
                                      std::vector<NodeInfo> &nodeInfos,
                                      std::unordered_map<std::string, AliasType> &aliases) const {
     auto *sm = qctx_->schemaMng();
@@ -170,40 +171,40 @@ Status MatchValidator::buildNodeInfo(const PathPattern *path,
     nodeInfos.resize(steps + 1);
 
     for (auto i = 0u; i <= steps; i++) {
-        auto *node = path->node(i);
-        auto *alias = node->alias();
-        auto *props = node->props();
+        auto node = path->node(i);
+        auto alias = node.alias();
+        auto *props = node.props();
         auto anonymous = false;
-        if (node->labels() != nullptr) {
-            auto &labels = node->labels()->labels();
+        if (!node.labels().empty()) {
+            auto labels = node.labels();
             for (const auto &label : labels) {
-                if (label != nullptr) {
-                    auto tid = sm->toTagID(space_.id, *label->label());
+                if (label.compare("")) {
+                    auto tid = sm->toTagID(space_.id, label);
                     if (!tid.ok()) {
-                        return Status::SemanticError("`%s': Unknown tag", label->label()->c_str());
+                        return Status::SemanticError("`%s': Unknown tag", label.c_str());
                     }
                     nodeInfos[i].tids.emplace_back(tid.value());
-                    nodeInfos[i].labels.emplace_back(label->label());
-                    nodeInfos[i].labelProps.emplace_back(label->props());
+                    nodeInfos[i].labels.emplace_back(label);
+                    nodeInfos[i].labelProps.emplace_back(node.props());
                 }
             }
         }
-        if (alias == nullptr) {
+        if (!alias.compare("")) {
             anonymous = true;
-            alias = saveObject(new std::string(vctx_->anonVarGen()->getVar()));
+            alias = std::string(vctx_->anonVarGen()->getVar());
         }
-        if (!aliases.emplace(*alias, AliasType::kNode).second) {
-            return Status::SemanticError("`%s': Redefined alias", alias->c_str());
+        if (!aliases.emplace(alias, AliasType::kNode).second) {
+            return Status::SemanticError("`%s': Redefined alias", alias.c_str());
         }
         Expression *filter = nullptr;
         if (props != nullptr) {
-            auto result = makeSubFilterWithoutSave(*alias, props);
+            auto result = makeSubFilterWithoutSave(alias, props);
             NG_RETURN_IF_ERROR(result);
             filter = result.value();
-        } else if (node->labels() != nullptr && !node->labels()->labels().empty()) {
-            const auto &labels = node->labels()->labels();
+        } else if (!node.labels().empty()) {
+            const auto &labels = node.labels();
             for (const auto &label : labels) {
-                auto result = makeSubFilterWithoutSave(*alias, label->props(), *label->label());
+                auto result = makeSubFilterWithoutSave(alias, node.props(), label);
                 NG_RETURN_IF_ERROR(result);
                 filter = andConnect(filter, result.value());
             }
@@ -218,7 +219,7 @@ Status MatchValidator::buildNodeInfo(const PathPattern *path,
     return Status::OK();
 }
 
-Status MatchValidator::buildEdgeInfo(const PathPattern *path,
+Status MatchValidator::buildEdgeInfo(const MatchPath *path,
                                      std::vector<EdgeInfo> &edgeInfos,
                                      std::unordered_map<std::string, AliasType> &aliases) const {
     auto *sm = qctx_->schemaMng();
@@ -226,20 +227,20 @@ Status MatchValidator::buildEdgeInfo(const PathPattern *path,
     edgeInfos.resize(steps);
 
     for (auto i = 0u; i < steps; i++) {
-        auto *edge = path->edge(i);
-        auto &types = edge->types();
-        auto *alias = edge->alias();
-        auto *props = edge->props();
-        auto direction = edge->direction();
+        auto edge = path->edge(i);
+        auto types = edge.edgeTypes();
+        auto alias = edge.alias();
+        auto props = edge.props();
+        auto direction = edge.direction();
         auto anonymous = false;
         if (!types.empty()) {
-            for (auto &type : types) {
-                auto etype = sm->toEdgeType(space_.id, *type);
+            for (auto type : types) {
+                auto etype = sm->toEdgeType(space_.id, type);
                 if (!etype.ok()) {
-                    return Status::SemanticError("`%s': Unknown edge type", type->c_str());
+                    return Status::SemanticError("`%s': Unknown edge type", type.c_str());
                 }
                 edgeInfos[i].edgeTypes.emplace_back(etype.value());
-                edgeInfos[i].types.emplace_back(type.get());
+                edgeInfos[i].types.emplace_back(type);
             }
         } else {
             const auto allEdgesResult =
@@ -252,21 +253,19 @@ Status MatchValidator::buildEdgeInfo(const PathPattern *path,
                 // edgeInfos[i].types.emplace_back(*type);
             }
         }
-        auto *stepRange = edge->range();
-        if (stepRange != nullptr) {
-            NG_RETURN_IF_ERROR(validateStepRange(stepRange));
-            edgeInfos[i].range = stepRange;
-        }
-        if (alias == nullptr) {
+        auto stepRange = edge.range();
+        NG_RETURN_IF_ERROR(validateStepRange(stepRange));
+        edgeInfos[i].range = stepRange;
+        if (!alias.compare("")) {
             anonymous = true;
-            alias = saveObject(new std::string(vctx_->anonVarGen()->getVar()));
+            alias = std::string(vctx_->anonVarGen()->getVar());
         }
-        if (!aliases.emplace(*alias, AliasType::kEdge).second) {
-            return Status::SemanticError("`%s': Redefined alias", alias->c_str());
+        if (!aliases.emplace(alias, AliasType::kEdge).second) {
+            return Status::SemanticError("`%s': Redefined alias", alias.c_str());
         }
         Expression *filter = nullptr;
         if (props != nullptr) {
-            auto result = makeSubFilter(*alias, props);
+            auto result = makeSubFilter(alias, props);
             NG_RETURN_IF_ERROR(result);
             filter = result.value();
         }
@@ -324,15 +323,15 @@ Status MatchValidator::validateReturn(ReturnClause *ret,
             auto steps = matchClauseCtx->edgeInfos.size();
 
             if (!matchClauseCtx->nodeInfos[0].anonymous) {
-                columns->addColumn(makeColumn(*matchClauseCtx->nodeInfos[0].alias));
+                columns->addColumn(makeColumn(matchClauseCtx->nodeInfos[0].alias));
             }
 
             for (auto i = 0u; i < steps; i++) {
                 if (!matchClauseCtx->edgeInfos[i].anonymous) {
-                    columns->addColumn(makeColumn(*matchClauseCtx->edgeInfos[i].alias));
+                    columns->addColumn(makeColumn(matchClauseCtx->edgeInfos[i].alias));
                 }
                 if (!matchClauseCtx->nodeInfos[i + 1].anonymous) {
-                    columns->addColumn(makeColumn(*matchClauseCtx->nodeInfos[i + 1].alias));
+                    columns->addColumn(makeColumn(matchClauseCtx->nodeInfos[i + 1].alias));
                 }
             }
 

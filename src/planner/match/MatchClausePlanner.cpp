@@ -263,16 +263,16 @@ Status MatchClausePlanner::projectColumnsBySymbols(MatchClauseContext* matchClau
 
     auto addNode = [&, this](size_t i) {
         auto& nodeInfo = nodeInfos[i];
-        if (nodeInfo.alias != nullptr && !nodeInfo.anonymous) {
+        if (!nodeInfo.alias.compare("") && !nodeInfo.anonymous) {
             if (i >= startIndex) {
-                columns->addColumn(buildVertexColumn(inColNames[i - startIndex], *nodeInfo.alias));
+                columns->addColumn(buildVertexColumn(inColNames[i - startIndex], nodeInfo.alias));
             } else if (startIndex == (nodeInfos.size() - 1)) {
-                columns->addColumn(buildVertexColumn(inColNames[startIndex - i], *nodeInfo.alias));
+                columns->addColumn(buildVertexColumn(inColNames[startIndex - i], nodeInfo.alias));
             } else {
                 columns->addColumn(
-                    buildVertexColumn(inColNames[nodeInfos.size() - i], *nodeInfo.alias));
+                    buildVertexColumn(inColNames[nodeInfos.size() - i], nodeInfo.alias));
             }
-            colNames.emplace_back(*nodeInfo.alias);
+            colNames.emplace_back(nodeInfo.alias);
         }
     };
 
@@ -281,7 +281,7 @@ Status MatchClausePlanner::projectColumnsBySymbols(MatchClauseContext* matchClau
                 << " nodesize: " << nodeInfos.size() << " start: " << startIndex;
         addNode(i);
         auto& edgeInfo = edgeInfos[i];
-        if (edgeInfo.alias != nullptr && !edgeInfo.anonymous) {
+        if (edgeInfo.alias.compare("") && !edgeInfo.anonymous) {
             if (i >= startIndex) {
                 columns->addColumn(buildEdgeColumn(inColNames[i - startIndex], edgeInfo));
             } else if (startIndex == (nodeInfos.size() - 1)) {
@@ -289,7 +289,7 @@ Status MatchClausePlanner::projectColumnsBySymbols(MatchClauseContext* matchClau
             } else {
                 columns->addColumn(buildEdgeColumn(inColNames[edgeInfos.size() - i], edgeInfo));
             }
-            colNames.emplace_back(*edgeInfo.alias);
+            colNames.emplace_back(edgeInfo.alias);
         }
     }
 
@@ -342,7 +342,7 @@ YieldColumn* MatchClausePlanner::buildEdgeColumn(const std::string& colName, Edg
         auto subExpr = std::make_unique<SubscriptExpression>(relExpr.release(), idxExpr.release());
         expr = subExpr.release();
     // }
-    return new YieldColumn(expr, new std::string(*edge.alias));
+    return new YieldColumn(expr, new std::string(edge.alias));
 }
 
 YieldColumn* MatchClausePlanner::buildPathColumn(const std::string& alias,

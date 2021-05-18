@@ -20,7 +20,7 @@ bool PropIndexSeek::matchEdge(EdgeContext* edgeCtx) {
         return false;
     }
 
-    if (edge.range_.first == 0) {
+    if (edge.range.first == 0) {
         // The 0 step is NodeScan in fact.
         return false;
     }
@@ -28,18 +28,16 @@ bool PropIndexSeek::matchEdge(EdgeContext* edgeCtx) {
     auto* matchClauseCtx = edgeCtx->matchClauseCtx;
     Expression* filter = nullptr;
     if (matchClauseCtx->where != nullptr && matchClauseCtx->where->filter != nullptr) {
-        filter = MatchSolver::makeIndexFilter(*edge.types.back(),
-                                              *edge.alias,
-                                               matchClauseCtx->where->filter,
-                                               matchClauseCtx->qctx,
-                                               true);
+        filter = MatchSolver::makeIndexFilter(edge.types.back(),
+                                              edge.alias,
+                                              matchClauseCtx->where->filter,
+                                              matchClauseCtx->qctx,
+                                              true);
     }
     if (filter == nullptr) {
         if (edge.props != nullptr && !edge.props->items().empty()) {
-            filter = MatchSolver::makeIndexFilter(*edge.types.back(),
-                                                   edge.props,
-                                                   matchClauseCtx->qctx,
-                                                   true);
+            filter = MatchSolver::makeIndexFilter(
+                edge.types.back(), edge.props, matchClauseCtx->qctx, true);
         }
     }
 
@@ -128,23 +126,20 @@ bool PropIndexSeek::matchNode(NodeContext* nodeCtx) {
     auto* matchClauseCtx = nodeCtx->matchClauseCtx;
     Expression* filter = nullptr;
     if (matchClauseCtx->where != nullptr && matchClauseCtx->where->filter != nullptr) {
-        filter = MatchSolver::makeIndexFilter(*node.labels.back(),
-                                              *node.alias,
-                                               matchClauseCtx->where->filter,
-                                               matchClauseCtx->qctx);
+        filter = MatchSolver::makeIndexFilter(
+            node.labels.back(), node.alias, matchClauseCtx->where->filter, matchClauseCtx->qctx);
     }
     if (filter == nullptr) {
         if (node.props != nullptr && !node.props->items().empty()) {
-            filter = MatchSolver::makeIndexFilter(*node.labels.back(),
-                                                   node.props,
-                                                   matchClauseCtx->qctx);
+            filter =
+                MatchSolver::makeIndexFilter(node.labels.back(), node.props, matchClauseCtx->qctx);
         }
     }
     // TODO(yee): Refactor these index choice logic
     if (filter == nullptr && !node.labelProps.empty()) {
         auto props = node.labelProps.back();
         if (props != nullptr) {
-            filter = MatchSolver::makeIndexFilter(*node.labels.back(), props, matchClauseCtx->qctx);
+            filter = MatchSolver::makeIndexFilter(node.labels.back(), props, matchClauseCtx->qctx);
         }
     }
 

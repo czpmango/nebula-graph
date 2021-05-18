@@ -38,7 +38,7 @@ struct NodeInfo {
     std::vector<TagID> tids;
     std::vector<std::string> labels;
     std::vector<MapExpression*> labelProps;
-    const std::string* alias{nullptr};
+    std::string alias;
     const MapExpression* props{nullptr};
     Expression* filter{nullptr};
 };
@@ -49,7 +49,7 @@ struct EdgeInfo {
     std::vector<EdgeType> edgeTypes;
     EdgePattern::Direction direction{EdgePattern::Direction::OUT_EDGE};
     std::vector<std::string> types;
-    const std::string* alias{nullptr};
+    std::string alias;
     const MapExpression* props{nullptr};
     Expression* filter{nullptr};
 };
@@ -59,7 +59,7 @@ enum class AliasType : int8_t { kNode, kEdge, kPath, kDefault };
 struct ScanInfo {
     Expression* filter{nullptr};
     std::vector<int32_t> schemaIds;
-    std::vector<const std::string*> schemaNames;
+    std::vector<std::string> schemaNames;
     // use for seek by index itself
     std::vector<IndexID> indexIds;
     // use for seek by edge only

@@ -56,7 +56,7 @@ protected:
 
 protected:
     std::string alias_;
-    static std::unordered_set<std::string> allAliases_;
+    std::unordered_set<std::string> allAliases_;
     bool isSingleNode_{false};
 };
 
