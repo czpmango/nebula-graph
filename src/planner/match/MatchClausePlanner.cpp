@@ -263,7 +263,7 @@ Status MatchClausePlanner::projectColumnsBySymbols(MatchClauseContext* matchClau
 
     auto addNode = [&, this](size_t i) {
         auto& nodeInfo = nodeInfos[i];
-        if (!nodeInfo.alias.compare("") && !nodeInfo.anonymous) {
+        if (nodeInfo.alias.compare("") && !nodeInfo.anonymous) {
             if (i >= startIndex) {
                 columns->addColumn(buildVertexColumn(inColNames[i - startIndex], nodeInfo.alias));
             } else if (startIndex == (nodeInfos.size() - 1)) {
