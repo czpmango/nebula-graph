@@ -17,10 +17,8 @@ namespace nebula {
 
 class PatternElement {
 public:
-    explicit PatternElement(std::string alias = "", bool isSingleNode = false) {
-        alias_ = alias;
-        isSingleNode_ = isSingleNode;
-    }
+    explicit PatternElement(std::string alias = "", bool isSingleNode = false)
+        : alias_(alias), isSingleNode_(isSingleNode) {}
 
     std::string alias() const {
         return alias_;
@@ -39,10 +37,7 @@ public:
     }
 
     virtual std::unique_ptr<PatternElement> clone() const = 0;
-
-    virtual std::string toString() const {
-        return "";
-    }
+    virtual std::string toString() const = 0;
     virtual ~PatternElement() = default;
 
 protected:
@@ -65,22 +60,25 @@ public:
     NodePattern(std::string alias, std::vector<std::string> labels, Expression* props)
         : PatternElement(alias, true) {
         labels_ = std::move(labels);
-        DCHECK_EQ(props->kind(), Expression::Kind::kMap);
-        props_.reset(static_cast<MapExpression*>(props));
+        if (props) {
+            DCHECK_EQ(props->kind(), Expression::Kind::kMap);
+            props_.reset(static_cast<MapExpression*>(props));
+        }
     }
 
     NodePattern(const NodePattern& nodePattern) : PatternElement(nodePattern) {
-        // alias_ = nodePattern.alias();
-        // isSingleNode_ = nodePattern.isSingleNode();
         labels_ = nodePattern.labels();
-        props_.reset(static_cast<MapExpression*>(nodePattern.props()->clone().release()));
+        props_.reset(static_cast<MapExpression*>(
+            nodePattern.props() ? nodePattern.props()->clone().release() : nullptr));
     }
 
     NodePattern& operator=(const NodePattern& nodePattern) {
         alias_ = nodePattern.alias();
+        allAliases_ = nodePattern.allAliases();
         isSingleNode_ = nodePattern.isSingleNode();
         labels_ = nodePattern.labels();
-        props_.reset(static_cast<MapExpression*>(nodePattern.props()->clone().release()));
+        props_.reset(static_cast<MapExpression*>(
+            nodePattern.props() ? nodePattern.props()->clone().release() : nullptr));
         return *this;
     }
 
@@ -93,7 +91,8 @@ public:
     }
 
     std::unique_ptr<PatternElement> clone() const override {
-        return std::make_unique<NodePattern>(alias_, labels_, props_->clone().release());
+        return std::make_unique<NodePattern>(
+            alias_, labels_, props_ ? props_->clone().release() : nullptr);
     }
 
     std::string toString() const override;
@@ -113,8 +112,10 @@ public:
                 EdgePattern::Direction direction = {EdgePattern::Direction::OUT_EDGE}) {
         alias_ = alias;
         edgeTypes_ = std::move(edgeTypes);
-        DCHECK_EQ(props->kind(), Expression::Kind::kMap);
-        props_.reset(static_cast<MapExpression*>(props));
+        if (props) {
+            DCHECK_EQ(props->kind(), Expression::Kind::kMap);
+            props_.reset(static_cast<MapExpression*>(props));
+        }
         range_ = range;
         direction_ = direction;
     }
@@ -123,7 +124,9 @@ public:
         alias_ = edgePattern.alias();
         edgeTypes_ = edgePattern.edgeTypes();
         range_ = edgePattern.range();
-        props_.reset(static_cast<MapExpression*>(edgePattern.props()));
+        if (edgePattern.props()) {
+            props_.reset(static_cast<MapExpression*>(edgePattern.props()));
+        }
         direction_ = edgePattern.direction();
     }
 
@@ -131,7 +134,9 @@ public:
         alias_ = edgePattern.alias();
         edgeTypes_ = edgePattern.edgeTypes();
         range_ = edgePattern.range();
-        props_.reset(static_cast<MapExpression*>(edgePattern.props()));
+        if (edgePattern.props()) {
+            props_.reset(static_cast<MapExpression*>(edgePattern.props()));
+        }
         direction_ = edgePattern.direction();
         return *this;
     }
@@ -162,7 +167,7 @@ public:
 
     std::unique_ptr<EdgePattern> clone() const {
         return std::make_unique<EdgePattern>(
-            alias_, edgeTypes_, props_->clone().release(), range_, direction_);
+            alias_, edgeTypes_, props_ ? props_->clone().release() : nullptr, range_, direction_);
     }
 
     std::string toString() const;
@@ -189,14 +194,21 @@ public:
 
     PathPattern(const PathPattern& pathPattern) : PatternElement(pathPattern) {
         element_.reset(static_cast<PatternElement*>(pathPattern.element()->clone().release()));
-        edge_.reset(static_cast<EdgePattern*>(pathPattern.edge()->clone().release()));
-        rightNode_.reset(static_cast<NodePattern*>(pathPattern.rightNode()->clone().release()));
+        edge_.reset(static_cast<EdgePattern*>(
+            pathPattern.edge() ? pathPattern.edge()->clone().release() : nullptr));
+        rightNode_.reset(static_cast<NodePattern*>(
+            pathPattern.rightNode() ? pathPattern.rightNode()->clone().release() : nullptr));
     }
 
     PathPattern& operator=(const PathPattern& pathPattern) {
+        alias_ = pathPattern.alias();
+        allAliases_ = pathPattern.allAliases();
+        isSingleNode_ = pathPattern.isSingleNode();
         element_.reset(static_cast<PatternElement*>(pathPattern.element()->clone().release()));
-        edge_.reset(static_cast<EdgePattern*>(pathPattern.edge()->clone().release()));
-        rightNode_.reset(static_cast<NodePattern*>(pathPattern.rightNode()->clone().release()));
+        edge_.reset(static_cast<EdgePattern*>(
+            pathPattern.edge() ? pathPattern.edge()->clone().release() : nullptr));
+        rightNode_.reset(static_cast<NodePattern*>(
+            pathPattern.rightNode() ? pathPattern.rightNode()->clone().release() : nullptr));
         return *this;
     }
 
@@ -562,7 +574,9 @@ private:
 class MatchPath final {
     // TODO: delete this class and use PathPattern after refactor cypher validator
 public:
-    explicit MatchPath(const PathPattern& pattern) : alias_(pattern.alias()), pattern_(pattern) {}
+    explicit MatchPath(const PathPattern& pattern) : alias_(pattern.alias()), pattern_(pattern) {
+        decomposePattern(pattern_.element(), pattern_.edge(), pattern_.rightNode());
+    }
 
     // decompose pattern into nodes_/edges_
     void decomposePattern(PatternElement* elem, EdgePattern* edge, NodePattern* rightNode) {

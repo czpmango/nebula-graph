@@ -10,6 +10,16 @@
 %parse-param { nebula::Sentence** sentences }
 %parse-param { nebula::graph::QueryContext* qctx }
 
+/* Generate the parser description file. */
+%verbose
+/* Enable run-time traces (yydebug). */
+%define parse.trace
+
+/* Formatting semantic values. */
+// %printer { fprintf (yyo, "%s", $$->name); } VAR;
+// %printer { fprintf (yyo, "%s()", $$->name); } FUN;
+// %printer { fprintf (yyo, "%g", $$); } <double>;
+
 %code requires {
 #include <iostream>
 #include <sstream>
@@ -1464,6 +1474,7 @@ match_alias
 edge_pattern
     : MINUS edge_pattern_directionless MINUS {
         $$ = $2;
+        printf ("pasering rule edge_pattern...");
         $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
     // | MINUS MINUS {
