@@ -2222,71 +2222,71 @@ TEST(Parser, TypeCast) {
 }
 
 TEST(Parser, Match) {
-    // {
-    //     std::string query = "MATCH () -- () RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH () <-- () RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH () --> () RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH () <--> () RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) --> (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a:person) --> (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    // std::string query = "MATCH (:person {name: 'Tom'}) --> (:person {name: 'Jerry'}) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) -[]- (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) -[]-> (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) <-[]- (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) -[m]- (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) <-[m:like]-> (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) <-[m:like{likeness: 99}]-> (b) RETURN *";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
+    {
+        std::string query = "MATCH () -- () RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH () <-- () RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH () --> () RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH () <--> () RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) --> (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a:person) --> (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+    std::string query = "MATCH (:person {name: 'Tom'}) --> (:person {name: 'Jerry'}) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) -[]- (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) -[]-> (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) <-[]- (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) -[m]- (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) <-[m:like]-> (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) <-[m:like{likeness: 99}]-> (b) RETURN *";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
     {
         std::string query = "MATCH (a) -[m]- (b) WHERE a.name == 'Tom' RETURN a";
         auto result = parse(query);
@@ -2382,66 +2382,66 @@ TEST(Parser, Match) {
         auto result = parse(query);
         ASSERT_TRUE(result.ok()) << result.status();
     }
-    // {
-    //     std::string query = "WITH a AS b RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH DISTINCT a as b RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH a as b ORDER BY b RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH a as b ORDER BY b SKIP 1 LIMIT 1 RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH a as b SKIP 1 LIMIT 1 RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH a as b LIMIT 1 RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH a as b SKIP 1 RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "WITH a as b SKIP 1 WHERE b > 0 RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "UNWIND a as b RETURN b";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "MATCH (a) MATCH (b) -[m]- (c) RETURN a,b,c";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "UNWIND a AS b MATCH (c) -[m]- (d) RETURN b,c,d";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
-    // {
-    //     std::string query = "UNWIND a AS b MATCH (c) MATCH (d) WITH e MATCH (f) RETURN b,c,d";
-    //     auto result = parse(query);
-    //     ASSERT_TRUE(result.ok()) << result.status();
-    // }
+    {
+        std::string query = "WITH a AS b RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH DISTINCT a as b RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH a as b ORDER BY b RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH a as b ORDER BY b SKIP 1 LIMIT 1 RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH a as b SKIP 1 LIMIT 1 RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH a as b LIMIT 1 RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH a as b SKIP 1 RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "WITH a as b SKIP 1 WHERE b > 0 RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "UNWIND a as b RETURN b";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "MATCH (a) MATCH (b) -[m]- (c) RETURN a,b,c";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "UNWIND a AS b MATCH (c) -[m]- (d) RETURN b,c,d";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
+    {
+        std::string query = "UNWIND a AS b MATCH (c) MATCH (d) WITH e MATCH (f) RETURN b,c,d";
+        auto result = parse(query);
+        ASSERT_TRUE(result.ok()) << result.status();
+    }
 }
 
 TEST(Parser, MatchErrorCheck) {

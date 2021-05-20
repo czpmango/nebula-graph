@@ -10,18 +10,10 @@
 %parse-param { nebula::Sentence** sentences }
 %parse-param { nebula::graph::QueryContext* qctx }
 
-/* Generate the parser description file. */
-%verbose
-/* Enable run-time traces (yydebug). */
 %define parse.trace
-
-/* Formatting semantic values. */
-// %printer { fprintf (yyo, "%s", $$->name); } VAR;
-// %printer { fprintf (yyo, "%s()", $$->name); } FUN;
-// %printer { fprintf (yyo, "%g", $$); } <double>;
+%define parse.error verbose
 
 %code requires {
-    #define YYDEBUG 1
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -71,6 +63,7 @@ static constexpr size_t kCommentLengthLimit = 256;
     int64_t                                 intval;
     double                                  doubleval;
     std::string                            *strval;
+    std::string                             str;
     nebula::meta::cpp2::ColumnTypeDef      *type;
     nebula::Expression                     *expr;
     nebula::Sentence                       *sentence;
@@ -305,7 +298,7 @@ static constexpr size_t kCommentLengthLimit = 256;
 %type <match_return> match_return
 %type <expr> match_skip
 %type <expr> match_limit
-%type <strval> match_alias
+%type <str> match_alias
 %type <match_edge_type_list> match_edge_type_list
 %type <label_list> label_list
 %type <cypher_clause> unwind_clause with_clause match_clause cypher_clause
@@ -1428,10 +1421,10 @@ label_list
 
 match_alias
     : %empty {
-        $$ = nullptr;
+        $$ = "";
     }
     | name_label {
-        $$ = $1;
+        $$ = *$1;
     }
     ;
 
@@ -1460,30 +1453,33 @@ path_pattern
 
 node_pattern
     : L_PAREN match_alias R_PAREN {
-        FLOG_INFO ("pasering rule node_pattern...");
-        $$ = new NodePattern(*$2, {}, nullptr);
-        delete($2);
+        FLOG_INFO ("pasering rule node_pattern1...");
+        $$ = new NodePattern($2, {}, nullptr);
+        // delete($2);
     }
     | L_PAREN match_alias label_list R_PAREN {
-        $$ = new NodePattern(*$2, $3->items(), nullptr);
-        delete($2);
+        FLOG_INFO ("pasering rule node_pattern2...");
+        $$ = new NodePattern($2, $3->items(), nullptr);
+        // delete($2);
         delete($3);
     }
     | L_PAREN match_alias map_expression R_PAREN {
-        $$ = new NodePattern(*$2, {}, $3);
-        delete($2);
+        FLOG_INFO ("pasering rule node_pattern3...");
+        $$ = new NodePattern($2, {}, $3);
+        // delete($2);
     }
     | L_PAREN match_alias label_list map_expression R_PAREN {
-        $$ = new NodePattern(*$2, $3->items(), $4);
-        delete($2);
+        FLOG_INFO ("pasering rule node_pattern4...");
+        $$ = new NodePattern($2, $3->items(), $4);
+        // delete($2);
         delete($3);
     }
     ;
 
 edge_pattern
     : MINUS edge_pattern_directionless MINUS {
+        FLOG_INFO ("pasering rule edge_pattern1...");
         $$ = $2;
-        FLOG_INFO ("pasering rule edge_pattern...");
         $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
     // | MINUS MINUS {
@@ -1491,43 +1487,47 @@ edge_pattern
     //     $$->setDirection(storage::cpp2::EdgeDirection::BOTH);
     // }
     | L_ARROW edge_pattern_directionless R_ARROW {
+        FLOG_INFO ("pasering rule edge_pattern2...");
         $$ = $2;
         $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
     | MINUS edge_pattern_directionless R_ARROW {
+        FLOG_INFO ("pasering rule edge_pattern3...");
         $$ = $2;
         $2->setDirection(storage::cpp2::EdgeDirection::OUT_EDGE);
     }
     | L_ARROW edge_pattern_directionless MINUS {
+        FLOG_INFO ("pasering rule edge_pattern4...");
         $$ = $2;
         $2->setDirection(storage::cpp2::EdgeDirection::IN_EDGE);
     }
     ;
 
 edge_pattern_directionless
-    : L_PAREN match_alias R_PAREN {
-        $$ = new EdgePattern(*$2, {}, nullptr, {1, 1});
-        delete($2);
+    : L_BRACKET match_alias R_BRACKET {
+        FLOG_INFO ("pasering rule edge_pattern_directionless...");
+        $$ = new EdgePattern($2, {}, nullptr, {1, 1});
+        // delete($2);
     }
-    | L_PAREN match_alias match_edge_type_list R_PAREN {
-        $$ = new EdgePattern(*$2, $3->items(), nullptr, {1, 1});
-        delete($2);
+    | L_BRACKET match_alias match_edge_type_list R_BRACKET {
+        $$ = new EdgePattern($2, $3->items(), nullptr, {1, 1});
+        // delete($2);
         delete($3);
     }
-    | L_PAREN match_alias match_edge_type_list map_expression R_PAREN {
-        $$ = new EdgePattern(*$2, $3->items(), $4, {1, 1});
-        delete($2);
+    | L_BRACKET match_alias match_edge_type_list map_expression R_BRACKET {
+        $$ = new EdgePattern($2, $3->items(), $4, {1, 1});
+        // delete($2);
         delete($3);
     }
-    | L_PAREN match_alias match_edge_type_list match_step_range R_PAREN {
-        $$ = new EdgePattern(*$2, $3->items(), nullptr, *$4);
-        delete($2);
+    | L_BRACKET match_alias match_edge_type_list match_step_range R_BRACKET {
+        $$ = new EdgePattern($2, $3->items(), nullptr, *$4);
+        // delete($2);
         delete($3);
         delete($4);
     }
-    | L_PAREN match_alias match_edge_type_list map_expression match_step_range R_PAREN {
-        $$ = new EdgePattern(*$2, $3->items(), $4, *$5);
-        delete($2);
+    | L_BRACKET match_alias match_edge_type_list map_expression match_step_range R_BRACKET {
+        $$ = new EdgePattern($2, $3->items(), $4, *$5);
+        // delete($2);
         delete($3);
         delete($5);
     }
