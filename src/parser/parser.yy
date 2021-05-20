@@ -21,6 +21,7 @@
 // %printer { fprintf (yyo, "%g", $$); } <double>;
 
 %code requires {
+    #define YYDEBUG 1
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -138,6 +139,7 @@ static constexpr size_t kCommentLengthLimit = 256;
     PathPattern                            *path_pattern;
     NodePattern                            *node_pattern;
     EdgePattern                            *edge_pattern;
+    // PatternElement                         *pattern_element;
     EdgePattern                            *edge_pattern_directionless;
     LabelList                              *label_list;
     LabelList                              *match_edge_type_list;
@@ -298,6 +300,7 @@ static constexpr size_t kCommentLengthLimit = 256;
 %type <path_pattern> path_pattern
 %type <node_pattern> node_pattern
 %type <edge_pattern> edge_pattern
+// %type <pattern_element> pattern_element
 %type <edge_pattern_directionless> edge_pattern_directionless
 %type <match_return> match_return
 %type <expr> match_skip
@@ -1411,45 +1414,6 @@ match_sentence
     }
     ;
 
-path_pattern
-    : node_pattern {
-        $$ = new PathPattern($1);
-    }
-    | path_pattern edge_pattern node_pattern {
-        $$ = $1;
-        $1->setEdge($2);
-        $1->setRightNode($3);
-    }
-    // TODO: support assign path
-    // | name_label ASSIGN path_pattern edge_pattern node_pattern {
-    //     $$ = $3;
-    //     $3->setEdge($4);
-    //     $3->setRightNode($5);
-    //     $3->setAlias($1);
-    // }
-    ;
-
-node_pattern
-    : L_PAREN match_alias R_PAREN {
-        $$ = new NodePattern(*$2, {}, nullptr);
-        delete($2);
-    }
-    | L_PAREN match_alias label_list R_PAREN {
-        $$ = new NodePattern(*$2, $3->items(), nullptr);
-        delete($2);
-        delete($3);
-    }
-    | L_PAREN match_alias map_expression R_PAREN {
-        $$ = new NodePattern(*$2, {}, $3);
-        delete($2);
-    }
-    | L_PAREN match_alias label_list map_expression R_PAREN {
-        $$ = new NodePattern(*$2, $3->items(), $4);
-        delete($2);
-        delete($3);
-    }
-    ;
-
 label_list
     : COLON name_label {
         $$ = new LabelList({*$2});
@@ -1471,10 +1435,55 @@ match_alias
     }
     ;
 
+// pattern_element
+//     : node_pattern edge_pattern node_pattern {
+//         $$ = new PathPattern($1, $2, $3);
+//     }
+
+path_pattern
+    : node_pattern {
+        FLOG_INFO ("pasering rule node2path_pattern...");
+        $$ = new PathPattern($1);
+    }
+    | path_pattern edge_pattern node_pattern {
+        FLOG_INFO ("pasering rule path2path_pattern...");
+        $$ = new PathPattern($1, $2, $3);
+    }
+    // TODO: support assign path
+    // | name_label ASSIGN path_pattern edge_pattern node_pattern {
+    //     $$ = $3;
+    //     $3->setEdge($4);
+    //     $3->setRightNode($5);
+    //     $3->setAlias($1);
+    // }
+    ;
+
+node_pattern
+    : L_PAREN match_alias R_PAREN {
+        FLOG_INFO ("pasering rule node_pattern...");
+        $$ = new NodePattern(*$2, {}, nullptr);
+        delete($2);
+    }
+    | L_PAREN match_alias label_list R_PAREN {
+        $$ = new NodePattern(*$2, $3->items(), nullptr);
+        delete($2);
+        delete($3);
+    }
+    | L_PAREN match_alias map_expression R_PAREN {
+        $$ = new NodePattern(*$2, {}, $3);
+        delete($2);
+    }
+    | L_PAREN match_alias label_list map_expression R_PAREN {
+        $$ = new NodePattern(*$2, $3->items(), $4);
+        delete($2);
+        delete($3);
+    }
+    ;
+
 edge_pattern
     : MINUS edge_pattern_directionless MINUS {
         $$ = $2;
-        printf ("pasering rule edge_pattern...");
+        FLOG_INFO ("pasering rule edge_pattern...");
         $2->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
     // | MINUS MINUS {
