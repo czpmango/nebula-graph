@@ -206,9 +206,15 @@ std::string PathPattern::toString() const {
         buf += " = ";
     }
 
-    buf += element_->toString();
-    buf += edge_->toString();
-    buf += rightNode_->toString();
+    if (element_) {
+        buf += element_->toString();
+    }
+    if (edge_) {
+        buf += edge_->toString();
+    }
+    if (rightNode_) {
+        buf += rightNode_->toString();
+    }
 
     return buf;
 }

@@ -2303,7 +2303,7 @@ TEST(Parser, Match) {
         ASSERT_TRUE(result.ok()) << result.status();
     }
     {
-        std::string query = "MATCH (a) -[m:like|:serve]- (b) RETURN a as Person";
+        std::string query = "MATCH (a) -[m:like|serve]- (b) RETURN a as Person";
         auto result = parse(query);
         ASSERT_TRUE(result.ok()) << result.status();
     }
@@ -2463,7 +2463,7 @@ TEST(Parser, MatchMultipleTags) {
     }
     {
         std::string query =
-            "MATCH (:person {name: 'Tom'}:player {id: 233}) --> (:person {name: 'Jerry'}) RETURN *";
+            "MATCH (:person :player {name: 'Tom', id: 233}) --> (:person {name: 'Jerry'}) RETURN *";
         auto result = parse(query);
         ASSERT_TRUE(result.ok()) << result.status();
     }
@@ -2474,12 +2474,12 @@ TEST(Parser, MatchMultipleTags) {
         ASSERT_TRUE(result.ok()) << result.status();
     }
     {
-        std::string query = "MATCH () --> (:person {name: 'Jerry'}:player {id: 233}) RETURN *";
+        std::string query = "MATCH () --> (:person :player {name: 'Jerry', id: 233}) RETURN *";
         auto result = parse(query);
         ASSERT_TRUE(result.ok()) << result.status();
     }
     {
-        std::string query = "MATCH () --> (:person {name: 'Jerry'}:player) RETURN *";
+        std::string query = "MATCH () --> (:person :player {name: 'Jerry'}) RETURN *";
         auto result = parse(query);
         ASSERT_TRUE(result.ok()) << result.status();
     }
