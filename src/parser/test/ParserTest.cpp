@@ -2313,7 +2313,7 @@ TEST(Parser, Match) {
         ASSERT_TRUE(result.ok()) << result.status();
     }
     {
-        std::string query = "MATCH (a) -[m:like*2]- (b) RETURN a as Person";
+        std::string query = "MATCH (a) -[m:like*2]- (c) RETURN a as Person";
         auto result = parse(query);
         ASSERT_TRUE(result.ok()) << result.status();
     }

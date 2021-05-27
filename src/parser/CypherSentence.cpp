@@ -157,16 +157,16 @@ std::string EdgePattern::toString() const {
         if (range_.first != 1 || range_.second != 1) {
             buf += "*";
             if (range_.first == range_.second) {
-                buf += range_.first;
+                buf += folly::to<std::string>(range_.first);
             } else if (range_.second == std::numeric_limits<int64_t>::max()) {
                 if (range_.first != 1) {
-                    buf += range_.first;
+                    buf += folly::to<std::string>(range_.first);
                     buf += "..";
                 }
             } else {
-                buf += range_.first;
+                buf += folly::to<std::string>(range_.first);
                 buf += "..";
-                buf += range_.second;
+                buf += folly::to<std::string>(range_.second);
             }
         }
         if (props_ != nullptr) {

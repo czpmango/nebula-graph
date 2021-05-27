@@ -131,6 +131,7 @@ static constexpr size_t kCommentLengthLimit = 256;
     ExpressionList                         *expression_list;
     MapItemList                            *map_item_list;
     PathPattern                            *path_pattern;
+    PathPattern                            *path_pattern_nameless;
     NodePattern                            *node_pattern;
     EdgePattern                            *edge_pattern;
     // PatternElement                         *pattern_element;
@@ -292,6 +293,7 @@ static constexpr size_t kCommentLengthLimit = 256;
 %type <expr> case_default
 
 %type <path_pattern> path_pattern
+%type <path_pattern_nameless> path_pattern_nameless
 %type <node_pattern> node_pattern
 %type <edge_pattern> edge_pattern
 // %type <pattern_element> pattern_element
@@ -1434,43 +1436,46 @@ match_alias
 //         $$ = new PathPattern($1, $2, $3);
 //     }
 
-path_pattern
+path_pattern_nameless
     : node_pattern {
-        FLOG_INFO ("pasering rule node2path_pattern...");
+        // FLOG_INFO ("pasering rule node2path_pattern...");
         $$ = new PathPattern($1);
     }
-    | path_pattern edge_pattern node_pattern {
-        FLOG_INFO ("pasering rule path2path_pattern...");
+    | path_pattern_nameless edge_pattern node_pattern {
+        // FLOG_INFO ("pasering rule path2path_pattern...");
         $$ = new PathPattern($1, $2, $3);
     }
-    // TODO: support assign path
-    // | name_label ASSIGN path_pattern edge_pattern node_pattern {
-    //     $$ = $3;
-    //     $3->setEdge($4);
-    //     $3->setRightNode($5);
-    //     $3->setAlias($1);
-    // }
     ;
+
+path_pattern
+    : path_pattern_nameless {
+        $$ = $1;
+    }
+    | name_label ASSIGN path_pattern_nameless {
+        $$ = $3;
+        $$->setAlias(*$1);
+        delete($1);
+    }
 
 node_pattern
     : L_PAREN match_alias R_PAREN {
-        FLOG_INFO ("pasering rule node_pattern1...");
+        // // FLOG_INFO ("pasering rule node_pattern1...");
         $$ = new NodePattern(GET_STRING_VALUE($2), {}, nullptr);
         delete($2);
     }
     | L_PAREN match_alias label_list R_PAREN {
-        FLOG_INFO ("pasering rule node_pattern2...");
+        // // FLOG_INFO ("pasering rule node_pattern2...");
         $$ = new NodePattern(GET_STRING_VALUE($2), $3->items(), nullptr);
         delete($2);
         delete($3);
     }
     | L_PAREN match_alias map_expression R_PAREN {
-        FLOG_INFO ("pasering rule node_pattern3...");
+        // // FLOG_INFO ("pasering rule node_pattern3...");
         $$ = new NodePattern(GET_STRING_VALUE($2), {}, $3);
         delete($2);
     }
     | L_PAREN match_alias label_list map_expression R_PAREN {
-        FLOG_INFO ("pasering rule node_pattern4...");
+        // // FLOG_INFO ("pasering rule node_pattern4...");
         $$ = new NodePattern(GET_STRING_VALUE($2), $3->items(), $4);
         delete($2);
         delete($3);
@@ -1479,22 +1484,22 @@ node_pattern
 
 edge_pattern
     : MINUS edge_pattern_directionless MINUS {
-        FLOG_INFO ("pasering rule edge_pattern1...");
+        // FLOG_INFO ("pasering rule edge_pattern1...");
         $$ = $2 ? $2 : new EdgePattern("", {}, nullptr, {1, 1});
         $$->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
     | L_ARROW edge_pattern_directionless R_ARROW {
-        FLOG_INFO ("pasering rule edge_pattern2...");
+        // // FLOG_INFO ("pasering rule edge_pattern2...");
         $$ = $2 ? $2 : new EdgePattern("", {}, nullptr, {1, 1});
         $$->setDirection(storage::cpp2::EdgeDirection::BOTH);
     }
     | MINUS edge_pattern_directionless R_ARROW {
-        FLOG_INFO ("pasering rule edge_pattern3...");
+        // // FLOG_INFO ("pasering rule edge_pattern3...");
         $$ = $2 ? $2 : new EdgePattern("", {}, nullptr, {1, 1});
         $$->setDirection(storage::cpp2::EdgeDirection::OUT_EDGE);
     }
     | L_ARROW edge_pattern_directionless MINUS {
-        FLOG_INFO ("pasering rule edge_pattern4...");
+        // // FLOG_INFO ("pasering rule edge_pattern4...");
         $$ = $2 ? $2 : new EdgePattern("", {}, nullptr, {1, 1});
         $$->setDirection(storage::cpp2::EdgeDirection::IN_EDGE);
     }
@@ -1505,7 +1510,7 @@ edge_pattern_directionless
         $$ = nullptr;
     }
     | L_BRACKET match_alias R_BRACKET {
-        FLOG_INFO ("pasering rule edge_pattern_directionless...");
+        // FLOG_INFO ("pasering rule edge_pattern_directionless...");
         $$ = new EdgePattern(GET_STRING_VALUE($2), {}, nullptr, {1, 1});
         delete($2);
     }
@@ -1534,20 +1539,25 @@ edge_pattern_directionless
     ;
 
 match_step_range
-    : STAR {
-        $$ = new std::pair<int64_t, int64_t>(1, std::numeric_limits<int64_t>::max());
-    }
-    | STAR legal_integer {
+    : STAR INTEGER {
+        // FLOG_INFO ("pasering rule step2...");
         $$ = new std::pair<int64_t, int64_t>($2, $2);
     }
-    | STAR DOT_DOT legal_integer {
+    | STAR DOT_DOT INTEGER {
+        // FLOG_INFO ("pasering rule step3");
         $$ = new std::pair<int64_t, int64_t>(1, $3);
     }
-    | STAR legal_integer DOT_DOT {
+    | STAR INTEGER DOT_DOT {
+        // FLOG_INFO ("pasering rule step4");
         $$ = new std::pair<int64_t, int64_t>($2, std::numeric_limits<int64_t>::max());
     }
-    | STAR legal_integer DOT_DOT legal_integer {
+    | STAR INTEGER DOT_DOT INTEGER {
+        // FLOG_INFO ("pasering rule step5");
         $$ = new std::pair<int64_t, int64_t>($2, $4);
+    }
+    | STAR {
+        // FLOG_INFO ("pasering rule step1...");
+        $$ = new std::pair<int64_t, int64_t>(1, std::numeric_limits<int64_t>::max());
     }
     ;
 
