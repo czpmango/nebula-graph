@@ -235,8 +235,8 @@ public:
     std::unique_ptr<PatternElement> clone() const override {
         return std::make_unique<PathPattern>(
             element_->clone().release(),
-            static_cast<EdgePattern*>(edge_->clone().release()),
-            static_cast<NodePattern*>(rightNode_->clone().release()),
+            edge_ ? static_cast<EdgePattern*>(edge_->clone().release()) : nullptr,
+            rightNode_ ? static_cast<NodePattern*>(rightNode_->clone().release()) : nullptr,
             alias_);
     }
 
