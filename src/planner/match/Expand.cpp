@@ -93,8 +93,8 @@ Status Expand::doExpand(const NodeInfo& node, const EdgeInfo& edge, SubPlan* pla
 Status Expand::expandSteps(const NodeInfo& node, const EdgeInfo& edge, SubPlan* plan) {
     SubPlan subplan;
     int64_t startIndex = 0;
-    auto minHop = edge.range ? edge.range->min() : 1;
-    auto maxHop = edge.range ? edge.range->max() : 1;
+    auto minHop = edge.range.first;
+    auto maxHop = edge.range.second;
 
     // Build first step
     // In the case of 0 step, src node is the dst node, return the vertex directly
@@ -244,7 +244,7 @@ Status Expand::filterDatasetByPathLength(const EdgeInfo& edge, PlanNode* input, 
     auto pathExpr = ExpressionUtils::inputPropExpr(kPathStr);
     args->addArgument(std::move(pathExpr));
     auto edgeExpr = std::make_unique<FunctionCallExpression>("length", args.release());
-    auto minHop = edge.range == nullptr ? 1 : edge.range->min();
+    auto minHop = edge.range.first;
     auto minHopExpr = std::make_unique<ConstantExpression>(minHop);
     auto expr = std::make_unique<RelationalExpression>(
         Expression::Kind::kRelGE, edgeExpr.release(), minHopExpr.release());

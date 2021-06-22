@@ -12,7 +12,7 @@
 #include "common/expression/Expression.h"
 #include "common/expression/PathBuildExpression.h"
 #include "context/ast/AstContext.h"
-#include "parser/MatchSentence.h"
+#include "parser/CypherSentence.h"
 
 namespace nebula {
 namespace graph {
@@ -32,11 +32,11 @@ enum class PatternKind : uint8_t {
     kEdge,
 };
 
-using Direction = MatchEdge::Direction;
+using Direction = EdgePattern::Direction;
 struct NodeInfo {
     bool                                    anonymous{false};
     std::vector<TagID>                      tids;
-    std::vector<const std::string*>         labels;
+    std::vector<std::string>                labels;
     std::vector<MapExpression*>             labelProps;
     std::string                             alias;
     const MapExpression                    *props{nullptr};
@@ -45,10 +45,10 @@ struct NodeInfo {
 
 struct EdgeInfo {
     bool                                    anonymous{false};
-    MatchStepRange                         *range{nullptr};
+    std::pair<int64_t, int64_t>             range{1, 1};
     std::vector<EdgeType>                   edgeTypes;
-    MatchEdge::Direction                    direction{MatchEdge::Direction::OUT_EDGE};
-    std::vector<const std::string*>         types;
+    EdgePattern::Direction                  direction{EdgePattern::Direction::OUT_EDGE};
+    std::vector<std::string>                types;
     std::string                             alias;
     const MapExpression                    *props{nullptr};
     Expression                             *filter{nullptr};
@@ -61,11 +61,11 @@ enum class AliasType : int8_t {
 struct ScanInfo {
     Expression                             *filter{nullptr};
     std::vector<int32_t>                    schemaIds;
-    std::vector<const std::string*>         schemaNames;
+    std::vector<std::string>                schemaNames;
     // use for seek by index itself
     std::vector<IndexID>                    indexIds;
     // use for seek by edge only
-    MatchEdge::Direction                    direction{MatchEdge::Direction::OUT_EDGE};
+    EdgePattern::Direction                  direction{EdgePattern::Direction::OUT_EDGE};
 };
 
 struct CypherClauseContextBase : AstContext {

@@ -24,7 +24,7 @@ AstContext *MatchValidator::getAstContext() {
 }
 
 Status MatchValidator::validateImpl() {
-    auto *sentence = static_cast<MatchSentence *>(sentence_);
+    auto *sentence = static_cast<CypherSentence *>(sentence_);
     auto &clauses = sentence->clauses();
 
     std::unordered_map<std::string, AliasType> *aliasesUsed = nullptr;
@@ -35,12 +35,12 @@ Status MatchValidator::validateImpl() {
 
     for (size_t i = 0; i < clauses.size(); ++i) {
         auto kind = clauses[i]->kind();
-        if (i > 0 && kind == ReadingClause::Kind::kMatch) {
+        if (i > 0 && kind == CypherClause::Kind::kMatch) {
             return Status::SemanticError(
                 "Match clause is not supported to be followed by other cypher clauses");
         }
         switch (kind) {
-            case ReadingClause::Kind::kMatch: {
+            case CypherClause::Kind::kMatch: {
                 auto *matchClause = static_cast<MatchClause *>(clauses[i].get());
 
                 if (matchClause->isOptional()) {
@@ -49,7 +49,9 @@ Status MatchValidator::validateImpl() {
 
                 auto matchClauseCtx = getContext<MatchClauseContext>();
                 matchClauseCtx->aliasesUsed = aliasesUsed;
-                NG_RETURN_IF_ERROR(validatePath(matchClause->path(), *matchClauseCtx));
+                MatchPath matchPath(*matchClause->path());
+                NG_RETURN_IF_ERROR(validatePath(&matchPath, *matchClauseCtx));
+                // NG_RETURN_IF_ERROR(validatePath(matchClause->path(), *matchClauseCtx));
                 if (matchClause->where() != nullptr) {
                     auto whereClauseCtx = getContext<WhereClauseContext>();
                     whereClauseCtx->aliasesUsed = &matchClauseCtx->aliasesGenerated;
@@ -73,7 +75,7 @@ Status MatchValidator::validateImpl() {
 
                 break;
             }
-            case ReadingClause::Kind::kUnwind: {
+            case CypherClause::Kind::kUnwind: {
                 auto *unwindClause = static_cast<UnwindClause *>(clauses[i].get());
                 auto unwindClauseCtx = getContext<UnwindClauseContext>();
                 unwindClauseCtx->aliasesUsed = aliasesUsed;
@@ -91,7 +93,7 @@ Status MatchValidator::validateImpl() {
                 UNUSED(prevYieldColumns);
                 break;
             }
-            case ReadingClause::Kind::kWith: {
+            case CypherClause::Kind::kWith: {
                 auto *withClause = static_cast<WithClause *>(clauses[i].get());
                 auto withClauseCtx = getContext<WithClauseContext>();
                 auto withYieldCtx = getContext<YieldClauseContext>();
@@ -138,12 +140,12 @@ Status MatchValidator::validatePath(const MatchPath *path,
 
 Status MatchValidator::buildPathExpr(const MatchPath *path,
                                      MatchClauseContext &matchClauseCtx) const {
-    auto *pathAlias = path->alias();
-    if (pathAlias == nullptr) {
+    auto pathAlias = path->alias();
+    if (pathAlias.empty()) {
         return Status::OK();
     }
-    if (!matchClauseCtx.aliasesGenerated.emplace(*pathAlias, AliasType::kPath).second) {
-        return Status::SemanticError("`%s': Redefined alias", pathAlias->c_str());
+    if (!matchClauseCtx.aliasesGenerated.emplace(pathAlias, AliasType::kPath).second) {
+        return Status::SemanticError("`%s': Redefined alias", pathAlias.c_str());
     }
 
     auto &nodeInfos = matchClauseCtx.nodeInfos;
@@ -167,26 +169,27 @@ Status MatchValidator::buildNodeInfo(const MatchPath *path,
     nodeInfos.resize(steps + 1);
 
     for (auto i = 0u; i <= steps; i++) {
-        auto *node = path->node(i);
-        auto alias = node->alias();
-        auto *props = node->props();
+        auto node = path->node(i);
+        auto alias = node.alias();
+        auto *props = node.props();
         auto anonymous = false;
-        if (node->labels() != nullptr) {
-            auto &labels = node->labels()->labels();
+        if (!node.labels().empty()) {
+            auto labels = node.labels();
             for (const auto &label : labels) {
-                if (label != nullptr) {
-                    auto tid = sm->toTagID(space_.id, *label->label());
+                if (!label.empty()) {
+                    auto tid = sm->toTagID(space_.id, label);
                     if (!tid.ok()) {
-                        return Status::SemanticError("`%s': Unknown tag", label->label()->c_str());
+                        return Status::SemanticError("`%s': Unknown tag", label.c_str());
                     }
                     nodeInfos[i].tids.emplace_back(tid.value());
-                    nodeInfos[i].labels.emplace_back(label->label());
-                    nodeInfos[i].labelProps.emplace_back(label->props());
+                    nodeInfos[i].labels.emplace_back(label);
+                    nodeInfos[i].labelProps.emplace_back(node.props());
                 }
             }
         }
         if (alias.empty()) {
             anonymous = true;
+            // TBD: string?
             alias = vctx_->anonVarGen()->getVar();
         }
         if (!aliases.emplace(alias, AliasType::kNode).second) {
@@ -197,10 +200,10 @@ Status MatchValidator::buildNodeInfo(const MatchPath *path,
             auto result = makeSubFilterWithoutSave(alias, props);
             NG_RETURN_IF_ERROR(result);
             filter = result.value();
-        } else if (node->labels() != nullptr && !node->labels()->labels().empty()) {
-            const auto &labels = node->labels()->labels();
+        } else if (!node.labels().empty()) {
+            const auto labels = node.labels();
             for (const auto &label : labels) {
-                auto result = makeSubFilterWithoutSave(alias, label->props(), *label->label());
+                auto result = makeSubFilterWithoutSave(alias, node.props(), label);
                 NG_RETURN_IF_ERROR(result);
                 filter = andConnect(filter, result.value());
             }
@@ -223,20 +226,20 @@ Status MatchValidator::buildEdgeInfo(const MatchPath *path,
     edgeInfos.resize(steps);
 
     for (auto i = 0u; i < steps; i++) {
-        auto *edge = path->edge(i);
-        auto &types = edge->types();
-        auto alias = edge->alias();
-        auto *props = edge->props();
-        auto direction = edge->direction();
+        auto edge = path->edge(i);
+        auto types = edge.edgeTypes();
+        auto alias = edge.alias();
+        auto *props = edge.props();
+        auto direction = edge.direction();
         auto anonymous = false;
         if (!types.empty()) {
-            for (auto &type : types) {
-                auto etype = sm->toEdgeType(space_.id, *type);
+            for (auto type : types) {
+                auto etype = sm->toEdgeType(space_.id, type);
                 if (!etype.ok()) {
-                    return Status::SemanticError("`%s': Unknown edge type", type->c_str());
+                    return Status::SemanticError("`%s': Unknown edge type", type.c_str());
                 }
                 edgeInfos[i].edgeTypes.emplace_back(etype.value());
-                edgeInfos[i].types.emplace_back(type.get());
+                edgeInfos[i].types.emplace_back(type);
             }
         } else {
             const auto allEdgesResult =
@@ -249,11 +252,10 @@ Status MatchValidator::buildEdgeInfo(const MatchPath *path,
                 // edgeInfos[i].types.emplace_back(*type);
             }
         }
-        auto *stepRange = edge->range();
-        if (stepRange != nullptr) {
-            NG_RETURN_IF_ERROR(validateStepRange(stepRange));
-            edgeInfos[i].range = stepRange;
-        }
+        auto stepRange = edge.range();
+        NG_RETURN_IF_ERROR(validateStepRange(stepRange));
+        // TBD: need it?
+        // edgeInfos[i].range = stepRange;
         if (alias.empty()) {
             anonymous = true;
             alias = vctx_->anonVarGen()->getVar();
@@ -300,7 +302,7 @@ Status MatchValidator::validateFilter(const Expression *filter,
     return Status::OK();
 }
 
-Status MatchValidator::validateReturn(MatchReturn *ret,
+Status MatchValidator::validateReturn(ReturnClause *ret,
                                       const CypherClauseContextBase *cypherClauseCtx,
                                       ReturnClauseContext &retClauseCtx) const {
     auto kind = cypherClauseCtx->kind;
@@ -414,9 +416,9 @@ Status MatchValidator::validateAliases(
     return Status::OK();
 }
 
-Status MatchValidator::validateStepRange(const MatchStepRange *range) const {
-    auto min = range->min();
-    auto max = range->max();
+Status MatchValidator::validateStepRange(const std::pair<int64_t, int64_t> range) const {
+    auto min = range.first;
+    auto max = range.second;
     if (min > max) {
         return Status::SemanticError(
             "Max hop must be greater equal than min hop: %ld vs. %ld", max, min);

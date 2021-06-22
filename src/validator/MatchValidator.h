@@ -15,8 +15,6 @@
 
 namespace nebula {
 
-class MatchStepRange;
-
 namespace graph {
 class MatchValidator final : public TraversalValidator {
 public:
@@ -31,14 +29,14 @@ private:
 
     Status validateFilter(const Expression *filter, WhereClauseContext &whereClauseCtx) const;
 
-    Status validateReturn(MatchReturn *ret,
+    Status validateReturn(ReturnClause *ret,
                           const CypherClauseContextBase *cypherClauseCtx,
                           ReturnClauseContext &retClauseCtx) const;
 
     Status validateAliases(const std::vector<const Expression *> &exprs,
                            const std::unordered_map<std::string, AliasType> *aliases) const;
 
-    Status validateStepRange(const MatchStepRange *range) const;
+    Status validateStepRange(const std::pair<int64_t, int64_t> range) const;
 
     Status validateWith(const WithClause *with, WithClauseContext &withClauseCtx) const;
 

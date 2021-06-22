@@ -20,7 +20,7 @@ bool PropIndexSeek::matchEdge(EdgeContext* edgeCtx) {
         return false;
     }
 
-    if (edge.range != nullptr && edge.range->min() == 0) {
+    if (edge.range.first == 0) {
         // The 0 step is NodeScan in fact.
         return false;
     }
@@ -28,7 +28,7 @@ bool PropIndexSeek::matchEdge(EdgeContext* edgeCtx) {
     auto* matchClauseCtx = edgeCtx->matchClauseCtx;
     Expression* filter = nullptr;
     if (matchClauseCtx->where != nullptr && matchClauseCtx->where->filter != nullptr) {
-        filter = MatchSolver::makeIndexFilter(*edge.types.back(),
+        filter = MatchSolver::makeIndexFilter(edge.types.back(),
                                               edge.alias,
                                               matchClauseCtx->where->filter,
                                               matchClauseCtx->qctx,
@@ -36,10 +36,8 @@ bool PropIndexSeek::matchEdge(EdgeContext* edgeCtx) {
     }
     if (filter == nullptr) {
         if (edge.props != nullptr && !edge.props->items().empty()) {
-            filter = MatchSolver::makeIndexFilter(*edge.types.back(),
-                                                   edge.props,
-                                                   matchClauseCtx->qctx,
-                                                   true);
+            filter = MatchSolver::makeIndexFilter(
+                edge.types.back(), edge.props, matchClauseCtx->qctx, true);
         }
     }
 
@@ -68,15 +66,15 @@ StatusOr<SubPlan> PropIndexSeek::transformEdge(EdgeContext* edgeCtx) {
     auto columns = std::make_unique<std::vector<std::string>>();
     std::vector<std::string> columnsName;
     switch (edgeCtx->scanInfo.direction) {
-        case MatchEdge::Direction::OUT_EDGE:
+        case EdgePattern::Direction::OUT_EDGE:
             columns->emplace_back(kSrc);
             columnsName.emplace_back(kVid);
             break;
-        case MatchEdge::Direction::IN_EDGE:
+        case EdgePattern::Direction::IN_EDGE:
             columns->emplace_back(kDst);
             columnsName.emplace_back(kVid);
             break;
-        case MatchEdge::Direction::BOTH:
+        case EdgePattern::Direction::BOTH:
             columns->emplace_back(kSrc);
             columns->emplace_back(kDst);
             columnsName.emplace_back(kSrc);
@@ -94,7 +92,7 @@ StatusOr<SubPlan> PropIndexSeek::transformEdge(EdgeContext* edgeCtx) {
     plan.tail = scan;
     plan.root = scan;
 
-    if (edgeCtx->scanInfo.direction == MatchEdge::Direction::BOTH) {
+    if (edgeCtx->scanInfo.direction == EdgePattern::Direction::BOTH) {
         // merge the src,dst to one column
         auto *yieldColumns = matchClauseCtx->qctx->objPool()->makeAndAdd<YieldColumns>();
         auto *exprList = new ExpressionList();
@@ -129,20 +127,19 @@ bool PropIndexSeek::matchNode(NodeContext* nodeCtx) {
     Expression* filter = nullptr;
     if (matchClauseCtx->where != nullptr && matchClauseCtx->where->filter != nullptr) {
         filter = MatchSolver::makeIndexFilter(
-            *node.labels.back(), node.alias, matchClauseCtx->where->filter, matchClauseCtx->qctx);
+            node.labels.back(), node.alias, matchClauseCtx->where->filter, matchClauseCtx->qctx);
     }
     if (filter == nullptr) {
         if (node.props != nullptr && !node.props->items().empty()) {
-            filter = MatchSolver::makeIndexFilter(*node.labels.back(),
-                                                   node.props,
-                                                   matchClauseCtx->qctx);
+            filter =
+                MatchSolver::makeIndexFilter(node.labels.back(), node.props, matchClauseCtx->qctx);
         }
     }
     // TODO(yee): Refactor these index choice logic
     if (filter == nullptr && !node.labelProps.empty()) {
         auto props = node.labelProps.back();
         if (props != nullptr) {
-            filter = MatchSolver::makeIndexFilter(*node.labels.back(), props, matchClauseCtx->qctx);
+            filter = MatchSolver::makeIndexFilter(node.labels.back(), props, matchClauseCtx->qctx);
         }
     }
 
