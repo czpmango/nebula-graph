@@ -720,22 +720,31 @@ bool getIndexColumnHintInExpr(const ColumnDef& field,
 
     if (hints.empty()) return false;
 
+    // pick the only ColumnHint
     if (hints.size() == 1) {
         *hint = hints.front();
-    } else {
-        Value begin, end;
-        if (!mergeRangeColumnHints(hints, &begin, &end)) {
-            return false;
-        }
-        ScoredColumnHint h;
-        h.hint.set_column_name(field.get_name());
-        h.hint.set_scan_type(storage::cpp2::ScanType::RANGE);
-        h.hint.set_begin_value(std::move(begin));
-        h.hint.set_end_value(std::move(end));
-        h.score = IndexScore::kRange;
-        *hint = std::move(h);
+        return true;
     }
-
+    // pick a valid prefix ColumnHint
+    auto prefixHint = std::find_if(hints.begin(), hints.end(), [](ScoredColumnHint s) -> bool {
+        return s.score == IndexScore::kPrefix;
+    });
+    if (prefixHint != hints.end()) {
+        *hint = *prefixHint;
+        return true;
+    }
+    // merge and pick range ColumnHint
+    Value begin, end;
+    if (!mergeRangeColumnHints(hints, &begin, &end)) {
+        return false;
+    }
+    ScoredColumnHint h;
+    h.hint.set_column_name(field.get_name());
+    h.hint.set_scan_type(storage::cpp2::ScanType::RANGE);
+    h.hint.set_begin_value(std::move(begin));
+    h.hint.set_end_value(std::move(end));
+    h.score = IndexScore::kRange;
+    *hint = std::move(h);
     return true;
 }
 
